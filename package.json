@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-ciyi",
   "description": "Koishi 的词意（猜词小游戏）插件。根据词语的含义相似程度，猜测正确的词语。",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [

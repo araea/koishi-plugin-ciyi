@@ -49,6 +49,7 @@ export interface Ciyi {
   answer: string;
   lastStartTimestamp: Date;
   guessedWords: string[];
+  guessedHistoryInOneGame: string[];
   rankList: string[];
   history: History[];
   isOver: boolean;
@@ -76,6 +77,7 @@ export function apply(ctx: Context, cfg: Config) {
     answer: 'string',
     lastStartTimestamp: 'timestamp',
     guessedWords: 'list',
+    guessedHistoryInOneGame: 'list',
     rankList: 'list',
     history: {type: 'json', initial: []},
     isOver: 'boolean',
@@ -46803,19 +46805,21 @@ ${formattedRanks}`;
     if (gameInfo[0].isOver) {
       return await sendMsg(session, '今日挑战已结束，请明日再来！');
     }
-    if (gameInfo[0].guessedWords.includes(guess)) {
+    if (gameInfo[0].guessedHistoryInOneGame.includes(guess)) {
       return await sendMsg(session, '你已经猜过这个词了！');
     }
     const rankList = gameInfo[0].rankList;
     const history = [...gameInfo[0].history, getHistory(guess, rankList)];
     await ctx.database.set('ciyi', {channelId: session.channelId}, {
+      guessedHistoryInOneGame: [...gameInfo[0].guessedHistoryInOneGame, guess],
       history,
     });
 
     if (guess === gameInfo[0].answer) {
       await ctx.database.set('ciyi', {channelId: session.channelId}, {
         isOver: true,
-        history: []
+        history: [],
+        guessedHistoryInOneGame: []
       });
 
       const msg = `恭喜你猜对了！
@@ -46866,6 +46870,7 @@ ${formattedRanks}`;
         rankList: rankList,
         history: [],
         isOver: false,
+        guessedHistoryInOneGame: [],
       });
     } else {
       await ctx.database.set('ciyi', {channelId: session.channelId}, {
@@ -46874,6 +46879,8 @@ ${formattedRanks}`;
         guessedWords: [...gameInfo[0].guessedWords, `${answer}`],
         rankList: rankList,
         isOver: false,
+        guessedHistoryInOneGame: [],
+        history: [],
       });
     }
 
