@@ -46803,6 +46803,9 @@ ${formattedRanks}`;
     if (gameInfo[0].isOver) {
       return await sendMsg(session, '今日挑战已结束，请明日再来！');
     }
+    if (gameInfo[0].guessedWords.includes(guess)) {
+      return await sendMsg(session, '你已经猜过这个词了！');
+    }
     const rankList = gameInfo[0].rankList;
     const history = [...gameInfo[0].history, getHistory(guess, rankList)];
     await ctx.database.set('ciyi', {channelId: session.channelId}, {
@@ -46812,6 +46815,7 @@ ${formattedRanks}`;
     if (guess === gameInfo[0].answer) {
       await ctx.database.set('ciyi', {channelId: session.channelId}, {
         isOver: true,
+        history: []
       });
 
       const msg = `恭喜你猜对了！
@@ -46843,6 +46847,9 @@ ${formattedRanks}`;
     if (!isNone) {
       if (isSameDay(timestamp, gameInfo[0].lastStartTimestamp)) {
         return await sendMsg(session, '今日挑战已经开始，请明日再来！');
+      }
+      if (!gameInfo[0].isOver) {
+        return await sendMsg(session, '还有未完成的挑战，请完成后再来！');
       }
     }
     let answer = random.pick(questionList);
