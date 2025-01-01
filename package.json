@@ -1,6 +1,6 @@
 {
   "name": "koishi-plugin-ciyi",
-  "description": "",
+  "description": "Koishi 的词意（猜词小游戏）插件。根据词语的含义相似程度，猜测正确的词语。",
   "version": "0.0.1",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -8,14 +8,33 @@
     "lib",
     "dist"
   ],
-  "license": "MIT",
-  "scripts": {},
+  "koishi": {
+    "service": {
+      "required": [
+        "database"
+      ]
+    }
+  },
+  "license": "MIT OR Apache-2.0",
+  "author": "Nawyjx <3373167460@qq.com>",
+  "homepage": "https://www.npmjs.com/package/koishi-plugin-ciyi?activeTab=readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/araea/koishi-plugin-ciyi.git"
+  },
   "keywords": [
-    "chatbot",
     "koishi",
-    "plugin"
+    "plugin",
+    "chatbot",
+    "ciyi",
+    "word",
+    "game",
+    "guess",
+    "wordle",
+    "猜词",
+    "游戏",
+    "词影"
   ],
-  "devDependencies": {},
   "peerDependencies": {
     "koishi": "^4.18.3"
   }
