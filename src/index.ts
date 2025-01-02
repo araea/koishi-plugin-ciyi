@@ -16,6 +16,8 @@ export interface Config {
   atReply: boolean;
   quoteReply: boolean;
   isEnableMiddleware: boolean;
+  maxHistory: number;
+  maxRank: number
 }
 
 export const Config: Schema<Config> = Schema.object({
@@ -31,6 +33,14 @@ export const Config: Schema<Config> = Schema.object({
     .boolean()
     .default(true)
     .description('是否启用中间件，若启用，猜测词语时可以不加前缀'),
+  maxHistory: Schema
+    .number()
+    .default(20)
+    .description('最大历史记录数，值为 0 时不限制'),
+  maxRank: Schema
+    .number()
+    .default(10)
+    .description('最大排行榜人数，值为 0 时不限制'),
 });
 
 
@@ -139,9 +149,9 @@ export function apply(ctx: Context, cfg: Config) {
   function formatCiyiRanks(ranks: CiyiRank[]): string {
     ranks.sort((a, b) => b.score - a.score);
 
-    const top10Ranks = ranks.slice(0, 10);
+    const topMaxRanks = ranks.slice(0, cfg.maxRank || undefined);
 
-    return top10Ranks
+    return topMaxRanks
       .map((rank, index) => {
         return `${index + 1}. ${rank.username} ${rank.score}`;
       })
@@ -149,16 +159,15 @@ export function apply(ctx: Context, cfg: Config) {
   }
 
   function formatHistories(histories: History[]): string {
-    histories.sort((a, b) => a.rank - b.rank);
-
-    const formattedStrings = histories.map((history, index) => {
-      const leftHintChar = history.leftHint.length > 1 ? history.leftHint[1] : "？";
-      const rightHintChar = history.rightHint.length > 0 ? history.rightHint[0] : "？";
-
-      return `${index + 1}. ？${leftHintChar}）${history.guess}（${rightHintChar}？ ${history.rank}`;
-    });
-
-    return formattedStrings.join("\n");
+    return histories
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, cfg.maxHistory || undefined)
+      .map((history, index) => {
+        const leftHintChar = history.leftHint.length > 1 ? history.leftHint[1] : "？";
+        const rightHintChar = history.rightHint.length > 0 ? history.rightHint[0] : "？";
+        return `${index + 1}. ？${leftHintChar}）${history.guess}（${rightHintChar}？ ${history.rank}`;
+      })
+      .join("\n");
   }
 
   function getHistory(targetString: string, stringArray: string[]): History | null {
