@@ -1,7 +1,7 @@
 # koishi-plugin-ciyi
 
 [<img alt="github" src="https://img.shields.io/badge/github-araea/ci_yi-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/araea/koishi-plugin-ciyi)
-[<img alt="npm" src="https://img.shields.io/npm/v/koishi-plugin-shindan-maker.svg?style=for-the-badge&color=fc8d62&logo=npm" height="20">](https://www.npmjs.com/package/koishi-plugin-ciyi)
+[<img alt="npm" src="https://img.shields.io/npm/v/koishi-plugin-ciyi.svg?style=for-the-badge&color=fc8d62&logo=npm" height="20">](https://www.npmjs.com/package/koishi-plugin-ciyi)
 
 Koishi 的词意（猜词游戏）插件。根据词语的含义相似程度，猜测正确的词语。
 
