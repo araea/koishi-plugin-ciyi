@@ -235,13 +235,6 @@ ${formattedRanks}`;
     if (gameInfo[0].guessedHistoryInOneGame.includes(guess)) {
       return await sendMsg(session, '你已经猜过这个词了！');
     }
-    const rankList = gameInfo[0].rankList;
-    const history = [...gameInfo[0].history, getHistory(guess, rankList)];
-    await ctx.database.set('ciyi', {channelId: session.channelId}, {
-      guessedHistoryInOneGame: [...gameInfo[0].guessedHistoryInOneGame, guess],
-      history,
-    });
-
     if (guess === gameInfo[0].answer) {
       await ctx.database.set('ciyi', {channelId: session.channelId}, {
         isOver: true,
@@ -250,7 +243,8 @@ ${formattedRanks}`;
       });
 
       const msg = `恭喜你猜对了！
-正确答案：${gameInfo[0].answer}`;
+正确答案：${gameInfo[0].answer}
+猜测次数：${gameInfo[0].history.length + 1} 次`;
 
       const playerInfo = await ctx.database.get('ciyi_rank', {userId: session.userId});
       if (playerInfo.length === 0) {
@@ -267,6 +261,13 @@ ${formattedRanks}`;
       }
       return await sendMsg(session, msg);
     }
+    const rankList = gameInfo[0].rankList;
+    const history = [...gameInfo[0].history, getHistory(guess, rankList)];
+    await ctx.database.set('ciyi', {channelId: session.channelId}, {
+      guessedHistoryInOneGame: [...gameInfo[0].guessedHistoryInOneGame, guess],
+      history,
+    });
+
 
     const historyString = formatHistories(history);
     return await sendMsg(session, historyString);
