@@ -36,11 +36,13 @@ export const Config: Schema<Config> = Schema.object({
   maxHistory: Schema
     .number()
     .default(20)
-    .description('最大历史记录数，值为 0 时不限制'),
+    .min(0)
+    .description('最大历史记录数'),
   maxRank: Schema
     .number()
     .default(10)
-    .description('最大排行榜人数，值为 0 时不限制'),
+    .min(0)
+    .description('最大排行榜人数'),
 });
 
 
@@ -149,25 +151,40 @@ export function apply(ctx: Context, cfg: Config) {
   function formatCiyiRanks(ranks: CiyiRank[]): string {
     ranks.sort((a, b) => b.score - a.score);
 
-    const topMaxRanks = ranks.slice(0, cfg.maxRank || undefined);
+    const maxRank = cfg.maxRank;
 
-    return topMaxRanks
+    const needsSlicing = maxRank !== undefined && maxRank < ranks.length;
+    const slicedRanks = needsSlicing
+      ? ranks.slice(0, maxRank)
+      : ranks;
+
+    const formattedString = slicedRanks
       .map((rank, index) => {
         return `${index + 1}. ${rank.username} ${rank.score}`;
       })
       .join("\n");
+
+    return needsSlicing ? `${formattedString}\n...` : formattedString;
   }
 
   function formatHistories(histories: History[]): string {
-    return histories
-      .sort((a, b) => a.rank - b.rank)
-      .slice(0, cfg.maxHistory || undefined)
+    const sortedHistories = histories.sort((a, b) => a.rank - b.rank);
+    const maxHistory = cfg.maxHistory;
+
+    const needsSlicing = maxHistory !== undefined && maxHistory < sortedHistories.length;
+    const slicedHistories = needsSlicing
+      ? sortedHistories.slice(0, maxHistory)
+      : sortedHistories;
+
+    const formattedString = slicedHistories
       .map((history, index) => {
         const leftHintChar = history.leftHint.length > 1 ? history.leftHint[1] : "？";
         const rightHintChar = history.rightHint.length > 0 ? history.rightHint[0] : "？";
         return `${index + 1}. ？${leftHintChar}）${history.guess}（${rightHintChar}？ ${history.rank}`;
       })
       .join("\n");
+
+    return needsSlicing ? `${formattedString}\n...` : formattedString;
   }
 
   function getHistory(targetString: string, stringArray: string[]): History | null {
