@@ -230,7 +230,7 @@ ${formattedRanks}`;
       return await sendMsg(session, '请先开始每日挑战！');
     }
     if (gameInfo[0].isOver) {
-      return await sendMsg(session, '今日挑战已结束，请明日再来！');
+      return await sendMsg(session, isSameDay(session.timestamp, gameInfo[0].lastStartTimestamp) ? '今日挑战已结束，请明日再来！' : '今日挑战还未开始！\n\n发送 ciyi.每日挑战 开始今日的挑战吧~');
     }
     if (gameInfo[0].guessedHistoryInOneGame.includes(guess)) {
       return await sendMsg(session, '你已经猜过这个词了！');
@@ -267,7 +267,6 @@ ${formattedRanks}`;
       guessedHistoryInOneGame: [...gameInfo[0].guessedHistoryInOneGame, guess],
       history,
     });
-
 
     const historyString = formatHistories(history);
     return await sendMsg(session, historyString);
