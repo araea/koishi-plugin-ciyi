@@ -418,13 +418,11 @@ ${formattedRanks}`;
     const url = `https://ci-ying.oss-cn-zhangjiakou.aliyuncs.com/v1/ci-yi-list/${word}.txt`;
 
     try {
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        return null;
-      }
-
-      return await response.text();
+      const response = await ctx.http.get(url, {
+        responseType: 'text'
+      });
+      
+      return response;
     } catch (error) {
       logger.error("Error fetching data:", error);
       return null;
