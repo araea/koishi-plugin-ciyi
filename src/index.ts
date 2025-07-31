@@ -230,7 +230,7 @@ ${formattedRanks}`;
       return await sendMsg(session, "请输入两字词语！");
     }
     if (!allWords.includes(guess)) {
-      return await sendMsg(session, "${guess} 不在词库中");
+      return await sendMsg(session, `${guess} 不在词库中`);
     }
 
     // 使用 let 因为 gameInfo 可能会被重新赋值
@@ -396,7 +396,7 @@ ${formattedRanks}`;
       );
     }
 
-    const msg = `每日词意挑战开始！
+    const msg = `词意每日挑战开始！
 
 目标
     猜出系统选择的两字词语
