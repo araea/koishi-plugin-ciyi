@@ -421,7 +421,7 @@ ${formattedRanks}`;
       const response = await ctx.http.get(url, {
         responseType: 'text'
       });
-      
+
       return response;
     } catch (error) {
       logger.error("Error fetching data:", error);

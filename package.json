@@ -37,6 +37,6 @@
     "词意"
   ],
   "peerDependencies": {
-    "koishi": "^4.18.8"
+    "koishi": "^4.18.9"
   }
 }
