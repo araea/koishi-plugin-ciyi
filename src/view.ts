@@ -140,10 +140,12 @@ body{display:inline-block;background:#DED4C0;font-family:var(--serif);color:var(
 .ce.mk::before,.ce.mk::after{content:"";position:absolute}
 .ce.mk::before{left:4px;right:4px;top:50%;border-top:1px dashed rgba(150,138,120,.55)}
 .ce.mk::after{top:4px;bottom:4px;left:50%;border-left:1px dashed rgba(150,138,120,.55)}
-.w.sm .ce{width:26px;height:26px;font-size:15px}
-.w.md .ce{width:34px;height:34px;font-size:20px}
-.w.lg{gap:9px}
-.w.lg .ce{width:78px;height:78px;font-size:46px;border-width:1.5px}
+/* 尺寸修饰类一律带 w- 前缀。裸的 sm/md/lg 会撞上页脚图例的 .lg —— 撞上那次，
+   .lg i 的 display:block 盖掉了这里的 flex，答案字直接掉到格子左上角 */
+.w-sm .ce{width:26px;height:26px;font-size:15px}
+.w-md .ce{width:34px;height:34px;font-size:20px}
+.w-lg{gap:9px}
+.w-lg .ce{width:78px;height:78px;font-size:46px;border-width:1.5px}
 .none{display:inline-block;color:var(--ink-3);font-size:13px;letter-spacing:.2em}
 
 /* ── 猜测板 ───────────────────────────────────────── */
@@ -301,7 +303,7 @@ function grid(
       i === opts.mask ? `<i class="ce mk"></i>` : `<i class="ce on">${esc(ch)}</i>`
     )
     .join("");
-  return `<span class="w ${opts.size ?? "md"}">${cells}</span>`;
+  return `<span class="w w-${opts.size ?? "md"}">${cells}</span>`;
 }
 
 function section(title: string, body: string): string {
