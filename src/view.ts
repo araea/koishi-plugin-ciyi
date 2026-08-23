@@ -56,8 +56,29 @@ export function nearness(rank: number, total: number): number {
   return Math.max(0, Math.min(100, Math.round(pct)));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 昵称
+//
+// 昵称是整张卡片里唯一一处玩家能自由书写的文本，所以它也是唯一一处需要设防的
+// 地方。转义挡得住尖括号，却挡不住方向控制符 —— 那不是可见字符，却能让它右边
+// 的一整行倒着排：一个带 U+202E 的昵称足以把页脚翻成「1# 到跨步一 21# 从」。
+// 图片和文本两条路都走这里收口。
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BIDI = /[\u200E\u200F\u061C\u202A-\u202E\u2066-\u2069]/g;
+
+/** 剔掉不可见的方向控制符。任何要落到版面上的外来文本都先过一遍。 */
+export function plain(s: any): string {
+  return String(s ?? "").replace(BIDI, "");
+}
+
+/** 昵称的规范形态：去控制符、去首尾空白，空的记作无名氏。 */
+export function nameOf(s: any): string {
+  return plain(s).trim() || "无名氏";
+}
+
 export function esc(s: any): string {
-  return String(s ?? "")
+  return plain(s)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -156,6 +177,10 @@ tr.gap td{padding:5px 12px;text-align:center;font-size:11.5px;color:var(--ink-3)
 .lg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2)}
 .lg i{display:block;width:9px;height:9px;flex:none;background:var(--tone)}
 .lg u{font-family:var(--num);text-decoration:none;color:var(--ink-3);font-size:11px}
+/* 昵称的长短不由我们做主。中文能随处折行，一串不断行的西文却会把整条页脚顶出
+   卡片 —— 而截图只裁到卡片边框，顶出去的部分连同后半句一起没了。所以给昵称
+   一个上限，让它自己省略，把「拿下今日一词 · …」那半句留全 */
+.lg .who{max-width:16em;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .tip{margin-left:auto;font-size:11.5px;color:var(--ink-3);letter-spacing:.05em}
 
 /* ── 区块 ─────────────────────────────────────────── */
@@ -209,8 +234,11 @@ tr.gap td{padding:5px 12px;text-align:center;font-size:11.5px;color:var(--ink-3)
 .ent.p1 .pos{background:var(--seal);color:#F7F1E5;border-color:var(--seal)}
 .ent.p2 .pos{background:#4A5470;color:#F7F1E5;border-color:#4A5470}
 .ent.p3 .pos{background:#9C7B4B;color:#F7F1E5;border-color:#9C7B4B}
-.ent .nm{font-size:15px;max-width:330px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.ent .me{margin-left:8px;font-size:10.5px;letter-spacing:.16em;color:var(--seal)}
+/* 省略号只该吃掉名字，不该连「我」一起吃掉 —— 那个标记恰恰是名字长、人又多的
+   时候最要紧的一处。所以裁剪只发生在名字自己那一层，标记留在外面不参与收缩 */
+.ent .nm{display:flex;align-items:baseline;min-width:0;max-width:380px;font-size:15px}
+.ent .nm .t{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ent .me{flex:none;margin-left:8px;font-size:10.5px;letter-spacing:.16em;color:var(--seal)}
 /* 自己那一行淡淡洇一层朱砂，人多时一眼能找到 */
 .ent.mine{background:linear-gradient(90deg,rgba(178,58,46,.07),rgba(178,58,46,0) 70%)}
 .ent .sc{margin-left:auto;flex:none;font-family:var(--num);font-size:19px;font-weight:700}
@@ -525,7 +553,9 @@ export function winCard(opts: WinOptions): string {
       </div>
     </div>` +
     footer(
-      `<div class="lg" style="color:var(--ink-2)">${esc(opts.username)} 拿下今日一词 · ${quip}</div>`,
+      `<div class="lg" style="color:var(--ink-2)"><span class="who">${esc(
+        nameOf(opts.username)
+      )}</span><span>拿下今日一词 · ${quip}</span></div>`,
       "明日零点换新题 · ciyi.排行榜"
     );
   return shell(body, 720);
@@ -550,7 +580,7 @@ export function rankCard(opts: RankOptions): string {
         .map(
           (e, i) =>
             `<div class="ent p${i + 1}${e.me ? " mine" : ""}"><div class="pos">${i + 1}</div>` +
-            `<div class="nm">${esc(e.username || "无名氏")}${
+            `<div class="nm"><span class="t">${esc(nameOf(e.username))}</span>${
               e.me ? `<span class="me">我</span>` : ""
             }</div>` +
             `<div class="sc">${e.score}<small>次</small></div></div>`

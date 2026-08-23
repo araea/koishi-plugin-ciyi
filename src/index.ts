@@ -7,6 +7,7 @@ import {
   History,
   boardCard,
   introCard,
+  nameOf,
   nearness,
   rankCard,
   startCard,
@@ -350,7 +351,7 @@ export function apply(ctx: Context, cfg: Config) {
         o.closest === null
           ? `此前　一击即中`
           : `此前　最接近 #${o.closest} · ${tierOf(o.closest).name}`,
-        `累计　${o.username} 已猜中 ${o.score} 次`,
+        `累计　${nameOf(o.username)} 已猜中 ${o.score} 次`,
         o.neighbors.length ? `近旁　${o.neighbors.join(" · ")}` : null,
       ].filter(Boolean) as string[],
       "明日零点换新题 · ciyi.排行榜 看战绩"
@@ -367,7 +368,7 @@ export function apply(ctx: Context, cfg: Config) {
     return textCard(
       "词意每日挑战排行榜",
       entries.map(
-        (e, i) => `${String(i + 1).padStart(2, "0")}. ${e.username || "无名氏"} ${e.score} 次`
+        (e, i) => `${String(i + 1).padStart(2, "0")}. ${nameOf(e.username)} ${e.score} 次`
       ),
       hidden > 0 ? `⋯ 另有 ${hidden} 人在榜 ⋯` : null
     );
