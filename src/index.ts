@@ -1,4 +1,4 @@
-import { Context, h, Random, Schema, Session } from "koishi";
+import { $, Context, h, Random, Schema, Session } from "koishi";
 import {} from "koishi-plugin-puppeteer";
 import allWords from "./data/allWords.json";
 import questionList from "./data/questionList.json";
@@ -426,11 +426,16 @@ export function apply(ctx: Context, cfg: Config) {
   }
 
   async function phb(session: Session) {
-    const ranks = await ctx.database.get("ciyi_rank", {});
-    const sorted = [...ranks].sort((a, b) => b.score - a.score);
-    const max = cfg.maxRank;
-    const shown = max < sorted.length ? sorted.slice(0, max) : sorted;
-    const hidden = sorted.length - shown.length;
+    // 排序与截断交给数据库，只有前 maxRank 行进内存
+    const [shown, players] = await Promise.all([
+      ctx.database
+        .select("ciyi_rank")
+        .orderBy("score", "desc")
+        .limit(cfg.maxRank)
+        .execute(),
+      ctx.database.select("ciyi_rank").execute((row) => $.count(row.id)),
+    ]);
+    const hidden = Math.max(0, players - shown.length);
 
     return await sendCard(
       session,
@@ -441,7 +446,7 @@ export function apply(ctx: Context, cfg: Config) {
           me: it.userId === session.userId,
         })),
         hidden,
-        players: sorted.length,
+        players,
       }),
       rankText(shown, hidden)
     );
@@ -711,14 +716,9 @@ export function apply(ctx: Context, cfg: Config) {
   }
 
   async function sendMsg(session: Session, msg: string) {
-    if (cfg.atReply) {
-      msg = `${h.at(session.userId)}${h("p", "")}${msg}`;
-    }
-
-    if (cfg.quoteReply) {
-      msg = `${h.quote(session.messageId)}${msg}`;
-    }
-
-    await session.send(msg);
+    const prefix: h[] = [];
+    if (cfg.quoteReply && session.messageId) prefix.push(h.quote(session.messageId));
+    if (cfg.atReply) prefix.push(h.at(session.userId), h("p"));
+    await session.send([...prefix, ...h.normalize(msg)]);
   }
 }
