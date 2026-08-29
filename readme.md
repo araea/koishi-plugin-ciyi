@@ -33,12 +33,12 @@ Koishi 的词意（猜词游戏）插件。根据词语的含义相似程度，�
 
 ## 致谢
 
-* [Koishi](https://koishi.chat/)
-* [词影](https://cy.surprising.studio/)
+- [Koishi](https://koishi.chat/)
+- [词影](https://cy.surprising.studio/)
 
 ## QQ 群
 
-* 956758505
+- 956758505
 
 <br>
 
