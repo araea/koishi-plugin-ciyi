@@ -454,10 +454,10 @@ export function apply(ctx: Context, cfg: Config) {
 
   async function c(session: Session, guess: string) {
     if (!guess || Array.from(guess).length !== 2) {
-      return await sendMsg(session, "词意只收两字词 · 例：ciyi.猜 山水");
+      return await sendMsg(session, "⚠️ 词意只收两字词。例：ciyi.猜 山水");
     }
     if (!allWords.includes(guess)) {
-      return await sendMsg(session, `「${guess}」不在词库中 · 换个常见些的词试试`);
+      return await sendMsg(session, `⚠️ 「${guess}」不在词库中，换个常见些的词试试。`);
     }
 
     // 使用 let 因为 gameInfo 可能会被重新赋值
@@ -479,7 +479,7 @@ export function apply(ctx: Context, cfg: Config) {
       let answer = getNewUniqueAnswer(oldGuessedWords);
       if (!answer) {
         logger.warn("没有可用的词语，无法开始新游戏");
-        return await sendMsg(session, "开始新挑战失败：题库已尽。");
+        return await sendMsg(session, "❌ 开始新挑战失败：题库已尽。");
       }
 
       const rankList = (await fetchCiYi(answer))?.trim().split("\n");
@@ -487,7 +487,7 @@ export function apply(ctx: Context, cfg: Config) {
         logger.warn(`获取词库 ${answer}.txt 失败`);
         return await sendMsg(
           session,
-          "开始新挑战失败：无法获取词库，请稍后再试。"
+          "❌ 开始新挑战失败：无法获取词库，请稍后再试。"
         );
       }
 
@@ -524,7 +524,7 @@ export function apply(ctx: Context, cfg: Config) {
     if (gameInfo.isOver) {
       return await sendMsg(
         session,
-        `今日挑战已结束 · 答案是「${gameInfo.answer}」\n明日零点换新题 · ciyi.排行榜 看战绩`
+        `今日挑战已结束。答案是「${gameInfo.answer}」\n明日零点换新题。发送 ciyi.排行榜 查看战绩。`
       );
     }
 
@@ -534,8 +534,8 @@ export function apply(ctx: Context, cfg: Config) {
       return await sendMsg(
         session,
         old
-          ? `「${guess}」已猜过 · #${old.rank} · ${tierOf(old.rank).name}`
-          : `「${guess}」已猜过`
+          ? `⚠️ 「${guess}」已猜过 · #${old.rank} · ${tierOf(old.rank).name}`
+          : `⚠️ 「${guess}」已猜过`
       );
     }
 
@@ -588,7 +588,7 @@ export function apply(ctx: Context, cfg: Config) {
     if (!entry) {
       // 词库与今日榜单理论上同源，真出现落差时说清楚，别让玩家以为是自己打错了
       logger.warn(`「${guess}」不在 ${gameInfo.answer} 的榜单中`);
-      return await sendMsg(session, `「${guess}」不在今日榜单中 · 换个词试试`);
+      return await sendMsg(session, `⚠️ 「${guess}」不在今日榜单中，换个词试试。`);
     }
 
     const history = [...gameInfo.history, entry];
@@ -629,14 +629,14 @@ export function apply(ctx: Context, cfg: Config) {
         return await sendMsg(
           session,
           gameInfo[0].isOver
-            ? `今日挑战早已收官 · 答案是「${gameInfo[0].answer}」\n明日零点换新题`
-            : `今日挑战早已开题 · 已猜 ${gameInfo[0].history.length} 词\n继续报词：ciyi.猜 山水`
+            ? `⚠️ 今日挑战已结束。答案是「${gameInfo[0].answer}」。\n明日零点换新题。`
+            : `⚠️ 今日挑战已开题，已猜 ${gameInfo[0].history.length} 词。\n继续报词：ciyi.猜 山水`
         );
       }
       if (!gameInfo[0].isOver) {
         return await sendMsg(
           session,
-          `上一题还没解出来 · 已猜 ${gameInfo[0].history.length} 词\n先把它拿下：ciyi.猜 山水`
+          `⚠️ 上一题还没解出来，已猜 ${gameInfo[0].history.length} 词。\n继续报词：ciyi.猜 山水`
         );
       }
     }
@@ -646,7 +646,7 @@ export function apply(ctx: Context, cfg: Config) {
     const answer = getNewUniqueAnswer(oldGuessedWords);
     if (!answer) {
       logger.warn("没有可用的词语，无法开始新游戏");
-      return await sendMsg(session, "开始新挑战失败：题库已尽。");
+      return await sendMsg(session, "❌ 开始新挑战失败：题库已尽。");
     }
 
     const rankList = (await fetchCiYi(answer))?.trim().split("\n");
@@ -654,7 +654,7 @@ export function apply(ctx: Context, cfg: Config) {
       logger.warn(`获取词库 ${answer}.txt 失败`);
       return await sendMsg(
         session,
-        "开始新挑战失败：无法获取词库，请稍后再试。"
+        "❌ 开始新挑战失败：无法获取词库，请稍后再试。"
       );
     }
 
