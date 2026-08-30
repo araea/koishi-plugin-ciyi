@@ -527,18 +527,22 @@ function drawBoardTable(
   rowH: number
 ): number {
   const cols = {
-    no: s(34),
+    no: s(38),
     nb: s(74),
     gw: s(90),
     rk: s(86),
     mt: s(150),
   };
+  // 左侧预留 accent 槽：fresh 行的红色竖条落在这里，不与序号重叠。
+  const accentW = s(3);
+  const noPad = s(8);
   const tableW = w - s(44);
   const cx = x + s(22);
+  const noX = cx + noPad;
 
   const headY = y;
   const fs = s(10.5);
-  textLeft(ctx, "序", cx, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
+  textLeft(ctx, "序", noX, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
   textCenter(ctx, "更近 ◀", cx + cols.no + cols.nb / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
   textCenter(ctx, "猜测", cx + cols.no + cols.nb + cols.gw / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
   textCenter(
@@ -584,7 +588,7 @@ function drawBoardTable(
       ctx.fillStyle = C.fresh;
       ctx.fillRect(cx, ry, tableW, rowH);
       ctx.fillStyle = C.seal;
-      ctx.fillRect(cx, ry, s(3), rowH);
+      ctx.fillRect(cx, ry, accentW, rowH);
     }
 
     ctx.strokeStyle = ordinal === 1 ? C.ruleDark : C.rule;
@@ -597,7 +601,7 @@ function drawBoardTable(
     textLeft(
       ctx,
       String(ordinal).padStart(2, "0"),
-      cx,
+      noX,
       midY,
       `${s(13)}px ${FONT_NUM}`,
       C.ink3
