@@ -526,35 +526,40 @@ function drawBoardTable(
   opts: BoardOptions,
   rowH: number
 ): number {
-  const cols = {
-    no: s(38),
-    nb: s(74),
-    gw: s(90),
-    rk: s(86),
-    mt: s(150),
-  };
-  // 左侧预留 accent 槽：fresh 行的红色竖条落在这里，不与序号重叠。
+  // 左侧 accent 槽，其余宽度按比例均分给六列，避免左空或右空。
   const accentW = s(3);
-  const noPad = s(8);
+  const gutter = s(10);
   const tableW = w - s(44);
   const cx = x + s(22);
-  const noX = cx + noPad;
+  const usable = Math.max(tableW - gutter, s(1));
+  const natural = [32, 72, 88, 72, 72, 148];
+  const naturalSum = natural.reduce((a, b) => a + b, 0);
+  const scale = usable / naturalSum;
+  const cols = {
+    no: natural[0] * scale,
+    nb: natural[1] * scale,
+    gw: natural[2] * scale,
+    rk: natural[4] * scale,
+    mt: natural[5] * scale,
+  };
+  const bx = cx + gutter;
+  const nb0 = bx + cols.no;
+  const gw0 = nb0 + cols.nb;
+  const nb1 = gw0 + cols.gw;
+  const rk0 = nb1 + cols.nb;
+  const mt0 = rk0 + cols.rk;
+  const noX = bx + s(2);
+  const meterBlockW = s(88) + s(9) + textWidth("咫尺", s(12.5));
+  const mtX = mt0 + Math.max(0, (cols.mt - meterBlockW) / 2);
 
   const headY = y;
   const fs = s(10.5);
   textLeft(ctx, "序", noX, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
-  textCenter(ctx, "更近 ◀", cx + cols.no + cols.nb / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
-  textCenter(ctx, "猜测", cx + cols.no + cols.nb + cols.gw / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
-  textCenter(
-    ctx,
-    "▶ 更远",
-    cx + cols.no + cols.nb + cols.gw + cols.nb / 2,
-    headY,
-    `${fs}px ${FONT_SERIF}`,
-    C.ink3
-  );
-  textRight(ctx, "排名", cx + cols.no + cols.nb + cols.gw + cols.nb + cols.rk, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
-  textRight(ctx, "亲疏", cx + tableW, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
+  textCenter(ctx, "更近 ◀", nb0 + cols.nb / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
+  textCenter(ctx, "猜测", gw0 + cols.gw / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
+  textCenter(ctx, "▶ 更远", nb1 + cols.nb / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
+  textCenter(ctx, "排名", rk0 + cols.rk / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
+  textCenter(ctx, "亲疏", mt0 + cols.mt / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
 
   let ry = y + s(22);
   let ordinal = 0;
@@ -607,23 +612,24 @@ function drawBoardTable(
       C.ink3
     );
 
-    const nbX = cx + cols.no + (cols.nb - gridWidth(history.leftHint, "sm")) / 2;
+    const nbX = nb0 + (cols.nb - gridWidth(history.leftHint, "sm")) / 2;
     drawWordGrid(ctx, nbX, midY - s(13), history.leftHint, "sm", 0);
 
-    const gwX = cx + cols.no + cols.nb + (cols.gw - gridWidth(history.guess, "md")) / 2;
+    const gwX = gw0 + (cols.gw - gridWidth(history.guess, "md")) / 2;
     drawWordGrid(ctx, gwX, midY - s(17), history.guess, "md");
 
-    const rbX = cx + cols.no + cols.nb + cols.gw + (cols.nb - gridWidth(history.rightHint, "sm")) / 2;
+    const rbX = nb1 + (cols.nb - gridWidth(history.rightHint, "sm")) / 2;
     drawWordGrid(ctx, rbX, midY - s(13), history.rightHint, "sm", 1);
 
-    const rkX = cx + cols.no + cols.nb + cols.gw + cols.nb + cols.rk;
     const rankText = String(history.rank);
     const rankFont = `700 ${s(21)}px ${FONT_NUM}`;
     const rankWidth = textWidth(rankText, s(21));
-    textRight(ctx, "#", rkX - rankWidth - s(3), midY, `${s(13)}px ${FONT_NUM}`, C.ink3);
-    textRight(ctx, rankText, rkX, midY, rankFont, tier.color);
+    const hashW = textWidth("#", s(13));
+    const rankBlock = hashW + s(3) + rankWidth;
+    const rankLeft = rk0 + (cols.rk - rankBlock) / 2;
+    textLeft(ctx, "#", rankLeft, midY, `${s(13)}px ${FONT_NUM}`, C.ink3);
+    textLeft(ctx, rankText, rankLeft + hashW + s(3), midY, rankFont, tier.color);
 
-    const mtX = cx + tableW - cols.mt + s(10);
     drawNearBar(ctx, mtX, midY, pct, tier);
 
     ry += rowH;
