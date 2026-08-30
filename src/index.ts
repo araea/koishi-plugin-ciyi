@@ -1,18 +1,14 @@
 import { $, Context, h, Random, Schema, Session } from "koishi";
-import {} from "koishi-plugin-puppeteer";
 import allWords from "./data/allWords.json";
 import questionList from "./data/questionList.json";
 import {
-  BoardRow,
-  History,
-  boardCard,
-  introCard,
-  nearness,
-  rankCard,
-  startCard,
-  tierOf,
-  winCard,
-} from "./view";
+  renderBoardCard,
+  renderIntroCard,
+  renderRankCard,
+  renderStartCard,
+  renderWinCard,
+} from "./render";
+import { BoardRow, History, nearness, tierOf } from "./view";
 
 export const name = "ciyi";
 export const usage = `# 词意
@@ -27,14 +23,14 @@ export const usage = `# 词意
 
 ## 图片
 
-安装 \`puppeteer\` 服务后，玩法、开局、猜测板、揭晓与排行榜都会渲染成「墨与纸」风格的卡片；
-未安装、渲染失败或关掉「渲染图片」时，自动回退为等价文本，玩法不受影响。
+启用 Koishi Canvas 服务后渲染「墨与纸」风格卡片；Puppeteer 已自带该服务，无需重复安装绘图库。
+没有绘图服务、渲染失败或关掉「渲染图片」时，自动回退为等价文本，玩法不受影响。
 
 ## QQ 群
 
 * 956758505`;
 
-export const inject = { required: ["database"], optional: ["puppeteer"] };
+export const inject = { required: ["database"], optional: ["canvas"] };
 
 // pz*
 export interface Config {
@@ -54,7 +50,7 @@ export const Config: Schema<Config> = Schema.object({
     .description("是否启用中间件（若启用，猜测词语时可以不使用指令直接猜测）"),
   renderImage: Schema.boolean()
     .default(true)
-    .description("渲染图片（需要 puppeteer 服务；关闭或渲染失败时使用等价文本）"),
+    .description("渲染图片（复用 Koishi Canvas 服务；不可用时使用等价文本）"),
   maxHistory: Schema.number()
     .default(10)
     .min(0)
@@ -249,7 +245,7 @@ export function apply(ctx: Context, cfg: Config) {
 
   // wb* 文本
   //
-  // 没有 puppeteer 时走这条路。文本不是图片的残次品，排版一样要站得住：
+  // 没有 Canvas 服务时走这条路。文本不是图片的残次品，排版一样要站得住：
   // 一行一手，名次右对齐前的位置固定，扫一眼就能看出哪一手最近。
   function textCard(
     title: string,
@@ -373,54 +369,40 @@ export function apply(ctx: Context, cfg: Config) {
     );
   }
 
-  // tx* 图片渲染
-  //
-  // puppeteer 是可选服务：没装、渲染超时、字体没就绪，都只是「这次没有图」，
-  // 一律安静地回退到等价文本，绝不让一局游戏卡在渲染上。
-  async function renderCard(html: string): Promise<string | null> {
-    if (!cfg.renderImage || !ctx.puppeteer) return null;
+  // tx* 图片渲染 — 复用 Koishi Canvas 服务；没有服务时无损回退为文本
+  async function renderCard(render: () => Promise<Buffer>): Promise<h | null> {
+    if (!cfg.renderImage || !ctx.canvas) return null;
     try {
-      return await ctx.puppeteer.render("", async (page, next) => {
-        try {
-          // 视口给得比最宽的猜测板还宽，让卡片按内容自然收缩而不是被挤到换行
-          await page.setViewport({
-            width: 1400,
-            height: 900,
-            deviceScaleFactor: 2,
-          });
-          await page.setContent(html, { waitUntil: "load", timeout: 15000 });
-          // 中文衬线体加载完再截图，否则会拍到一张回退字体的板
-          await page.evaluate(async () => {
-            await (document as any).fonts?.ready;
-          });
-          const card = await page.$("#card");
-          return await next((card ?? undefined) as any);
-        } catch (error) {
-          // render() 只在回调正常返回后关页，出错这条路得自己收尾
-          await page.close().catch(() => {});
-          throw error;
-        }
-      });
+      const buffer = await render();
+      return h.image(buffer, "image/png");
     } catch (error: any) {
       logger.warn("图片渲染失败，本次回退为文本：%s", error?.message ?? error);
       return null;
     }
   }
 
-  async function sendCard(session: Session, html: string, fallback: string) {
-    const image = await renderCard(html);
-    return await sendMsg(session, image ?? fallback);
+  async function sendCard(session: Session, render: () => Promise<Buffer>, fallback: string) {
+    const image = await renderCard(render);
+    const prefix: h[] = [];
+    if (cfg.quoteReply && session.messageId) prefix.push(h.quote(session.messageId));
+    if (cfg.atReply) prefix.push(h.at(session.userId), h("p"));
+    if (image) {
+      await session.send([...prefix, image]);
+      return;
+    }
+    await session.send([...prefix, ...h.normalize(fallback)]);
   }
 
   // zlhs* 指令实现
   async function wf(session: Session) {
     return await sendCard(
       session,
-      introCard({
-        total: allWords.length,
-        words: allWords.length,
-        middleware: cfg.isEnableMiddleware,
-      }),
+      () =>
+        renderIntroCard(ctx.canvas, {
+          total: allWords.length,
+          words: allWords.length,
+          middleware: cfg.isEnableMiddleware,
+        }),
       introText()
     );
   }
@@ -439,15 +421,16 @@ export function apply(ctx: Context, cfg: Config) {
 
     return await sendCard(
       session,
-      rankCard({
-        entries: shown.map((it) => ({
-          username: it.username,
-          score: it.score,
-          me: it.userId === session.userId,
-        })),
-        hidden,
-        players,
-      }),
+      () =>
+        renderRankCard(ctx.canvas, {
+          entries: shown.map((it) => ({
+            username: it.username,
+            score: it.score,
+            me: it.userId === session.userId,
+          })),
+          hidden,
+          players,
+        }),
       rankText(shown, hidden)
     );
   }
@@ -580,7 +563,7 @@ export function apply(ctx: Context, cfg: Config) {
         username: session.username,
         score,
       };
-      return await sendCard(session, winCard(win), winText(win));
+      return await sendCard(session, () => renderWinCard(ctx.canvas, win), winText(win));
     }
 
     const rankList = gameInfo.rankList;
@@ -605,15 +588,16 @@ export function apply(ctx: Context, cfg: Config) {
     const near = nearness(entry.rank, rankList.length);
     return await sendCard(
       session,
-      boardCard({
-        rows,
-        total: rankList.length,
-        attempts: history.length,
-        tip:
-          hidden > 0 && !rows.some((r) => r.gapBefore)
-            ? `另有 ${hidden} 词未列 · 亲近度 ${near}%`
-            : `亲近度 ${near}% · ${tierOf(entry.rank).note}`,
-      }),
+      () =>
+        renderBoardCard(ctx.canvas, {
+          rows,
+          total: rankList.length,
+          attempts: history.length,
+          tip:
+            hidden > 0 && !rows.some((r) => r.gapBefore)
+              ? `另有 ${hidden} 词未列 · 亲近度 ${near}%`
+              : `亲近度 ${near}% · ${tierOf(entry.rank).note}`,
+        }),
       boardText(rows, hidden, history.length)
     );
   }
@@ -688,7 +672,7 @@ export function apply(ctx: Context, cfg: Config) {
     const left = Math.max(0, questionList.length - (oldGuessedWords.length + 1));
     return await sendCard(
       session,
-      startCard({ total: rankList.length, words: allWords.length, left }),
+      () => renderStartCard(ctx.canvas, { total: rankList.length, words: allWords.length, left }),
       startText(left)
     );
   }
