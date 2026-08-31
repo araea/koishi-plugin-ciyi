@@ -10,24 +10,17 @@ import {
 import { BoardRow, History, nearness, tierOf } from "./view";
 
 export const name = "ciyi";
-export const usage = `# 词意
+export const usage = `## 使用
 
-按「意思有多近」找词：系统每天藏起一个两字词，你报词，它回你这个词与答案的语义排名。
-名次越小越近，**#1 就是答案本身**。
+设置指令别名后，发送 \`ciyi\` 查看玩法。每日藏一个两字词，第一次猜测会自动开题。
 
-## 使用
+## 指令
 
-1. 设置指令别名（推荐把 \`ciyi.猜\` 设为 \`猜\`）。
-2. 发送 \`ciyi.猜 山水\` 直接开始今日游戏并提交第一猜。
-
-## 图片
-
-启用 Koishi Canvas 服务后渲染「墨与纸」风格卡片；Puppeteer 已自带该服务，无需重复安装绘图库。
-没有绘图服务、渲染失败或关掉「渲染图片」时，自动回退为等价文本，玩法不受影响。
-
-## QQ 群
-
-* 956758505`;
+| 指令 | 说明 |
+| --- | --- |
+| \`ciyi\` | 玩法说明 |
+| \`ciyi.猜 <词>\` | 开始今日游戏并提交猜测 |
+| \`ciyi.排行榜\` | 猜中次数榜 |`;
 
 export const inject = { required: ["database"], optional: ["canvas"] };
 
