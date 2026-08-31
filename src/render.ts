@@ -827,7 +827,9 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
         ? "一击即中，今日无需第二次落笔"
         : `从 #${opts.closest} 一步跨到 #1`;
 
-    const footerTip = "明日零点换新题 · ciyi.排行榜";
+    const footerTip = opts.canStartToday
+      ? "ciyi.猜 山水 · 开启今日新题"
+      : "明日零点换新题 · ciyi.排行榜";
     drawFooter(
       ctx,
       ix,

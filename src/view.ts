@@ -63,6 +63,7 @@ export interface WinOptions {
   neighbors: string[];
   username: string;
   score: number;
+  canStartToday: boolean;
 }
 
 export interface RankEntry {

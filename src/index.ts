@@ -311,6 +311,7 @@ export function apply(ctx: Context, cfg: Config) {
     neighbors: string[];
     username: string;
     score: number;
+    canStartToday: boolean;
   }): string {
     return textCard(
       "猜中了 · 今日已封题",
@@ -323,7 +324,9 @@ export function apply(ctx: Context, cfg: Config) {
         `累计　${o.username} 已猜中 ${o.score} 次`,
         o.neighbors.length ? `近旁　${o.neighbors.join(" · ")}` : null,
       ].filter(Boolean) as string[],
-      "明日零点换新题 · ciyi.排行榜 看战绩"
+      o.canStartToday
+        ? "继续 ciyi.猜 山水 · 开启今日新题"
+        : "明日零点换新题 · ciyi.排行榜 看战绩"
     );
   }
 
@@ -409,7 +412,7 @@ export function apply(ctx: Context, cfg: Config) {
     );
   }
 
-  /** 读取今日题目；跨日时在玩家第一次猜测前静默换题。 */
+  /** 未完成的旧题继续保留；只有已封题且跨日后才生成新题。 */
   async function getTodayGame(session: Session): Promise<Ciyi | null> {
     const current = (
       await ctx.database.get("ciyi", { channelId: session.channelId })
@@ -417,7 +420,8 @@ export function apply(ctx: Context, cfg: Config) {
 
     if (
       current &&
-      isSameDayInChina(session.timestamp, current.lastStartTimestamp)
+      (!current.isOver ||
+        isSameDayInChina(session.timestamp, current.lastStartTimestamp))
     ) {
       return current;
     }
@@ -531,6 +535,10 @@ export function apply(ctx: Context, cfg: Config) {
         neighbors: gameInfo.rankList.slice(1, 6),
         username: session.username,
         score,
+        canStartToday: !isSameDayInChina(
+          session.timestamp,
+          gameInfo.lastStartTimestamp
+        ),
       };
       return await sendCard(session, () => renderWinCard(ctx.canvas, win), winText(win));
     }
