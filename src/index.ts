@@ -43,9 +43,9 @@ export interface Config {
 
 export const Config: Schema<Config> = Schema.object({
   atReply: Schema.boolean().default(false).description("响应时 @"),
-  quoteReply: Schema.boolean().default(true).description("响应时引用"),
+  quoteReply: Schema.boolean().default(false).description("响应时引用"),
   isEnableMiddleware: Schema.boolean()
-    .default(false)
+    .default(true)
     .description("是否启用中间件（若启用，猜测词语时可以不使用指令直接猜测）"),
   renderImage: Schema.boolean()
     .default(true)

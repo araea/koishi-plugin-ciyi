@@ -854,8 +854,16 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
 
 export function renderRankCard(service: CanvasService, opts: RankOptions): Promise<Buffer> {
   const innerW = s(620);
-  const rowCount = Math.max(opts.entries.length, 1);
-  const innerH = s(120 + rowCount * 52 + (opts.hidden > 0 ? 36 : 0) + 60);
+  // 排行区的每一段都单独计高，避免空榜提示或末行落进固定在底部的页脚。
+  const headerH = s(87);
+  const contentGap = s(20);
+  const rowH = s(52);
+  const emptyH = s(92);
+  const hiddenH = opts.hidden > 0 ? s(36) : 0;
+  const footerGap = s(20);
+  const footerH = s(60);
+  const contentH = opts.entries.length ? opts.entries.length * rowH + hiddenH : emptyH;
+  const innerH = headerH + contentGap + contentH + footerGap + footerH;
 
   return toPng(service, innerW, innerH, (ctx, ix, iy, iw, ih) => {
     let y = iy + drawHeader(ctx, ix, iy, iw, "每日挑战 · 累计猜中", {
@@ -865,11 +873,12 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
     y += s(20);
 
     if (!opts.entries.length) {
+      drawPanel(ctx, ix + s(22), y, iw - s(44), emptyH);
       textCenter(
         ctx,
         "榜上无名。",
         ix + iw / 2,
-        y + s(40),
+        y + s(31),
         `${s(13.5)}px ${FONT_SERIF}`,
         C.ink3
       );
@@ -877,7 +886,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         ctx,
         "今日第一个猜中的人，会写在这里。",
         ix + iw / 2,
-        y + s(68),
+        y + s(61),
         `${s(13.5)}px ${FONT_SERIF}`,
         C.ink3
       );
@@ -885,7 +894,6 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
       let ry = y;
       for (let i = 0; i < opts.entries.length; i++) {
         const e = opts.entries[i];
-        const rowH = s(52);
         const midY = ry + rowH / 2;
 
         if (e.me) {
@@ -919,9 +927,13 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         const name = e.username || "无名氏";
         const nameX = px + posSize + s(14);
         const nameFont = `${s(15)}px ${FONT_SERIF}`;
+        const score = String(e.score);
+        const scoreRight = ix + iw - s(38);
+        const scoreLeft = scoreRight - textWidth(score, s(19));
+        const meWidth = e.me ? textWidth("我", s(10.5)) + s(18) : 0;
         const fittedName = ellipsize(
           name,
-          ix + iw - s(118) - nameX - (e.me ? s(28) : 0),
+          Math.max(0, scoreLeft - s(18) - nameX - meWidth),
           s(15)
         );
         textLeft(ctx, fittedName, nameX, midY, nameFont, C.ink);
@@ -932,8 +944,8 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
 
         textRight(
           ctx,
-          String(e.score),
-          ix + iw - s(38),
+          score,
+          scoreRight,
           midY,
           `700 ${s(19)}px ${FONT_NUM}`,
           C.ink
