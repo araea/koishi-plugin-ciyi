@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-ciyi",
   "description": "Koishi 的词意（猜词游戏）插件。根据词语的含义相似程度，猜测正确的词语。",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -40,16 +40,10 @@
     "词影",
     "词意"
   ],
-  "dependencies": {
+  "devDependencies": {
     "@koishijs/canvas": "^0.2.0"
   },
   "peerDependencies": {
-    "koishi": "^4.18.11",
-    "koishi-plugin-puppeteer": "^3.9.0"
-  },
-  "peerDependenciesMeta": {
-    "koishi-plugin-puppeteer": {
-      "optional": true
-    }
+    "koishi": "^4.18.11"
   }
 }

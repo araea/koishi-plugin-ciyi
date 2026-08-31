@@ -12,7 +12,6 @@ import {
   BoardRow,
   IntroOptions,
   RankOptions,
-  StartOptions,
   TIERS,
   Tier,
   WinOptions,
@@ -665,7 +664,7 @@ export function renderBoardCard(service: CanvasService, opts: BoardOptions): Pro
 export function renderIntroCard(service: CanvasService, opts: IntroOptions): Promise<Buffer> {
   const innerW = s(720);
   // 所有区块按真实占用高度累加，页脚与最后一块之间保留完整呼吸区。
-  const innerH = s(716);
+  const innerH = s(688);
 
   return toPng(service, innerW, innerH, (ctx, ix, iy, iw, ih) => {
     let y = iy + drawHeader(ctx, ix, iy, iw, "按意思远近找词 · 每日一题", {
@@ -676,25 +675,22 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
 
     y += drawSectionTitle(ctx, ix + s(22), y, iw - s(44), "玩法");
     y += s(11);
-    const p1h = s(104);
+    const p1h = s(76);
     drawPanel(ctx, ix + s(22), y, iw - s(44), p1h);
-    textLeft(ctx, "其一", ix + s(38), y + s(24), `${s(14)}px ${FONT_SERIF}`, C.seal);
-    textLeft(ctx, "ciyi.每日挑战", ix + s(96), y + s(24), `${s(13.5)}px ${FONT_NUM}`, C.ink);
-    textLeft(ctx, "开今天的题", ix + s(230), y + s(24), `${s(14)}px ${FONT_SERIF}`, C.ink);
-    textLeft(ctx, "其二", ix + s(38), y + s(52), `${s(14)}px ${FONT_SERIF}`, C.seal);
-    textLeft(ctx, "ciyi.猜 山水", ix + s(96), y + s(52), `${s(13.5)}px ${FONT_NUM}`, C.ink);
+    textLeft(ctx, "开始", ix + s(38), y + s(24), `${s(14)}px ${FONT_SERIF}`, C.seal);
+    textLeft(ctx, "ciyi.猜 山水", ix + s(96), y + s(24), `${s(13.5)}px ${FONT_NUM}`, C.ink);
     textLeftFit(
       ctx,
-      `报一个两字词${opts.middleware ? "，也可以直接把词发出来" : ""}`,
+      `开题并报一个两字词${opts.middleware ? "，也可以直接把词发出来" : ""}`,
       ix + s(230),
-      y + s(52),
+      y + s(24),
       iw - s(268),
       `${s(14)}px ${FONT_SERIF}`,
       C.ink
     );
-    textLeft(ctx, "其三", ix + s(38), y + s(80), `${s(14)}px ${FONT_SERIF}`, C.seal);
-    textLeft(ctx, "ciyi.排行榜", ix + s(96), y + s(80), `${s(13.5)}px ${FONT_NUM}`, C.ink);
-    textLeft(ctx, "看谁猜中得最多", ix + s(230), y + s(80), `${s(14)}px ${FONT_SERIF}`, C.ink);
+    textLeft(ctx, "排行", ix + s(38), y + s(52), `${s(14)}px ${FONT_SERIF}`, C.seal);
+    textLeft(ctx, "ciyi.排行榜", ix + s(96), y + s(52), `${s(13.5)}px ${FONT_NUM}`, C.ink);
+    textLeft(ctx, "看谁猜中得最多", ix + s(230), y + s(52), `${s(14)}px ${FONT_SERIF}`, C.ink);
     y += p1h + s(19);
 
     y += drawSectionTitle(ctx, ix + s(22), y, iw - s(44), "读板");
@@ -763,97 +759,6 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       `${s(11.5)}px ${FONT_SERIF}`,
       C.ink3
     );
-  });
-}
-
-export function renderStartCard(service: CanvasService, opts: StartOptions): Promise<Buffer> {
-  const innerW = s(720);
-  const innerH = s(604);
-
-  return toPng(service, innerW, innerH, (ctx, ix, iy, iw, ih) => {
-    let y = iy + drawHeader(ctx, ix, iy, iw, "每日挑战 · 今日题目已开", {
-      big: "壹",
-      cap: "今日一词",
-    });
-    y += s(20);
-
-    y += drawSectionTitle(ctx, ix + s(22), y, iw - s(44), "目标");
-    y += s(11);
-    const t1 = s(52);
-    drawPanel(ctx, ix + s(22), y, iw - s(44), t1);
-    textLeft(ctx, "一词", ix + s(38), y + t1 / 2, `${s(14)}px ${FONT_SERIF}`, C.seal);
-    textLeftFit(
-      ctx,
-      `在 ${opts.words.toLocaleString()} 个两字词里，找出今天被藏起来的那一个。`,
-      ix + s(96),
-      y + t1 / 2,
-      iw - s(134),
-      `${s(14)}px ${FONT_SERIF}`,
-      C.ink
-    );
-    y += t1 + s(19);
-
-    y += drawSectionTitle(ctx, ix + s(22), y, iw - s(44), "反馈");
-    y += s(11);
-    const t2 = s(150);
-    drawPanel(ctx, ix + s(22), y, iw - s(44), t2);
-    drawBoardTable(
-      ctx,
-      ix + s(22),
-      y + s(10),
-      iw - s(44),
-      {
-        rows: [{ history: { guess: "企业", rank: 467, leftHint: "良好", rightHint: "地产" } }],
-        total: opts.total,
-        attempts: 1,
-        tip: "",
-      },
-      s(50)
-    );
-    textLeft(
-      ctx,
-      "排名是这个词与答案的意思有多近 —— #1 就是答案本身。",
-      ix + s(38),
-      y + s(102),
-      `${s(12)}px ${FONT_SERIF}`,
-      C.ink3
-    );
-    textLeft(
-      ctx,
-      "左右是榜单上的邻居，左邻更近，右邻更远；空格子各藏一字。",
-      ix + s(38),
-      y + s(126),
-      `${s(12)}px ${FONT_SERIF}`,
-      C.ink2
-    );
-    y += t2 + s(19);
-
-    y += drawSectionTitle(ctx, ix + s(22), y, iw - s(44), "周期");
-    y += s(11);
-    const t3 = s(72);
-    drawPanel(ctx, ix + s(22), y, iw - s(44), t3);
-    textLeft(ctx, "每日", ix + s(38), y + s(22), `${s(14)}px ${FONT_SERIF}`, C.seal);
-    textLeft(ctx, "一词，猜中即封题，次日零点换新。", ix + s(96), y + s(22), `${s(14)}px ${FONT_SERIF}`, C.ink);
-    textLeft(ctx, "记数", ix + s(38), y + s(50), `${s(14)}px ${FONT_SERIF}`, C.seal);
-    textLeft(
-      ctx,
-      `猜中记入排行榜；题库尚余 ${opts.left.toLocaleString()} 题未出。`,
-      ix + s(96),
-      y + s(50),
-      `${s(14)}px ${FONT_SERIF}`,
-      C.ink
-    );
-
-    drawFooter(
-      ctx,
-      ix,
-      iy + ih - s(60),
-      iw,
-      [],
-      "咫尺 · 毗邻 · 相近 · 沾边 · 疏远 · 天涯"
-    );
-    textLeft(ctx, "ciyi.猜 山水", ix + s(22), iy + ih - s(30), `${s(13.5)}px ${FONT_NUM}`, C.ink);
-    textLeft(ctx, "提交一次猜测", ix + s(140), iy + ih - s(30), `${s(11.5)}px ${FONT_SERIF}`, C.ink3);
   });
 }
 
@@ -1054,7 +959,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
       iy + ih - s(60),
       iw,
       [],
-      "ciyi.每日挑战"
+      "ciyi.猜 山水"
     );
     textLeft(
       ctx,

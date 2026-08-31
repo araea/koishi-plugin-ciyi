@@ -50,12 +50,6 @@ export interface BoardOptions {
   tip: string;
 }
 
-export interface StartOptions {
-  total: number;
-  words: number;
-  left: number;
-}
-
 export interface IntroOptions {
   total: number;
   words: number;

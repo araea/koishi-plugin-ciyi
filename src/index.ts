@@ -5,7 +5,6 @@ import {
   renderBoardCard,
   renderIntroCard,
   renderRankCard,
-  renderStartCard,
   renderWinCard,
 } from "./render";
 import { BoardRow, History, nearness, tierOf } from "./view";
@@ -19,7 +18,7 @@ export const usage = `# 词意
 ## 使用
 
 1. 设置指令别名（推荐把 \`ciyi.猜\` 设为 \`猜\`）。
-2. 发送 \`ciyi\` 查看图文玩法说明。
+2. 发送 \`ciyi.猜 山水\` 直接开始今日游戏并提交第一猜。
 
 ## 图片
 
@@ -132,23 +131,13 @@ export function apply(ctx: Context, cfg: Config) {
       if (!allWords.includes(text)) {
         return await next();
       }
-      const gameInfo = await ctx.database.get("ciyi", {
-        channelId: session.channelId,
-      });
-      if (gameInfo.length === 0 || gameInfo[0].isOver) {
-        return await next();
-      }
-      await session.execute(`ciyi.猜 ${text}`);
+      return await session.execute(`ciyi.猜 ${text}`);
     });
   }
 
   // zl*
   ctx.command("ciyi", "词意（猜词游戏）").action(async ({ session }) => {
     return await wf(session);
-  });
-  // mryt* mrtz*
-  ctx.command("ciyi.每日挑战", "开启今日题目").action(async ({ session }) => {
-    return await mrtz(session);
   });
   // c*
   ctx
@@ -296,11 +285,10 @@ export function apply(ctx: Context, cfg: Config) {
       "词意 · 按意思远近找词",
       `每天藏起一个两字词。你报词，我回它与答案的语义排名 —— 名次越小越近，#1 就是答案本身。`,
       [
-        `其一　ciyi.每日挑战　开今天的题`,
-        `其二　ciyi.猜 山水　　报一个两字词${
+        `开始　ciyi.猜 山水　　开题并报一个两字词${
           cfg.isEnableMiddleware ? "（也可直接发词）" : ""
         }`,
-        `其三　ciyi.排行榜　　看谁猜中得最多`,
+        `排行　ciyi.排行榜　　看谁猜中得最多`,
       ],
       [
         `读板　？好）企业（地？ #467 · 沾边`,
@@ -313,20 +301,6 @@ export function apply(ctx: Context, cfg: Config) {
         `　　　沾边 ≤1000　疏远 ≤5000　天涯 5000+`,
       ],
       `词库 ${allWords.length.toLocaleString()} 词，题库 ${questionList.length.toLocaleString()} 题，一日一词。`
-    );
-  }
-
-  function startText(left: number): string {
-    return textCard(
-      "词意每日挑战 · 今日题目已开",
-      [
-        `目标　在 ${allWords.length.toLocaleString()} 个两字词里，找出今天被藏起来的那一个`,
-        `反馈　每次猜测回你一个语义名次，外加左右邻词各遮一字`,
-        `　　　例：？好）企业（地？ #467 · 沾边`,
-        `　　　左邻更近答案，右邻更远，#1 即是答案`,
-        `周期　一词一日，猜中即封题，次日零点换新`,
-      ],
-      `题库尚余 ${left.toLocaleString()} 题 · 报词请用 ciyi.猜 山水`
     );
   }
 
@@ -435,6 +409,53 @@ export function apply(ctx: Context, cfg: Config) {
     );
   }
 
+  /** 读取今日题目；跨日时在玩家第一次猜测前静默换题。 */
+  async function getTodayGame(session: Session): Promise<Ciyi | null> {
+    const current = (
+      await ctx.database.get("ciyi", { channelId: session.channelId })
+    )[0];
+
+    if (
+      current &&
+      isSameDayInChina(session.timestamp, current.lastStartTimestamp)
+    ) {
+      return current;
+    }
+
+    const oldGuessedWords = current?.guessedWords ?? [];
+    const answer = getNewUniqueAnswer(oldGuessedWords);
+    if (!answer) {
+      logger.warn("没有可用的词语，无法开始新游戏");
+      return null;
+    }
+
+    const source = await fetchCiYi(answer);
+    const rankList = source
+      ?.split(/\r?\n/)
+      .map((word) => word.trim())
+      .filter(Boolean);
+    if (!rankList?.length) {
+      logger.warn(`获取词库 ${answer}.txt 失败`);
+      return null;
+    }
+
+    const data = {
+      channelId: session.channelId,
+      answer,
+      lastStartTimestamp: new Date(session.timestamp),
+      guessedWords: [...oldGuessedWords, answer],
+      rankList,
+      isOver: false,
+      guessedHistoryInOneGame: [],
+      history: [],
+    };
+
+    if (!current) return await ctx.database.create("ciyi", data);
+
+    await ctx.database.set("ciyi", { id: current.id }, data);
+    return { ...current, ...data };
+  }
+
   async function c(session: Session, guess: string) {
     if (!guess || Array.from(guess).length !== 2) {
       return await sendMsg(session, "⚠️ 词意只收两字词。例：ciyi.猜 山水");
@@ -443,64 +464,12 @@ export function apply(ctx: Context, cfg: Config) {
       return await sendMsg(session, `⚠️ 「${guess}」不在词库中，换个常见些的词试试。`);
     }
 
-    // 使用 let 因为 gameInfo 可能会被重新赋值
-    let gameInfo = (
-      await ctx.database.get("ciyi", {
-        channelId: session.channelId,
-      })
-    )[0];
-
-    // 新增逻辑：如果游戏从未开始，或者已结束且日期已是新的一天，则自动开始新游戏
-    if (
-      !gameInfo ||
-      (gameInfo.isOver &&
-        !isSameDayInChina(session.timestamp, gameInfo.lastStartTimestamp))
-    ) {
-      const timestamp = session.timestamp;
-      const oldGuessedWords = gameInfo ? gameInfo.guessedWords : [];
-
-      let answer = getNewUniqueAnswer(oldGuessedWords);
-      if (!answer) {
-        logger.warn("没有可用的词语，无法开始新游戏");
-        return await sendMsg(session, "❌ 开始新挑战失败：题库已尽。");
-      }
-
-      const rankList = (await fetchCiYi(answer))?.trim().split("\n");
-      if (!rankList) {
-        logger.warn(`获取词库 ${answer}.txt 失败`);
-        return await sendMsg(
-          session,
-          "❌ 开始新挑战失败：无法获取词库，请稍后再试。"
-        );
-      }
-
-      const newGameData = {
-        channelId: session.channelId,
-        answer,
-        lastStartTimestamp: new Date(timestamp),
-        guessedWords: [...oldGuessedWords, answer],
-        rankList: rankList,
-        isOver: false,
-        guessedHistoryInOneGame: [],
-        history: [],
-      };
-
-      if (!gameInfo) {
-        await ctx.database.create("ciyi", newGameData);
-      } else {
-        await ctx.database.set(
-          "ciyi",
-          { channelId: session.channelId },
-          newGameData
-        );
-      }
-
-      // 关键：重新获取游戏信息，以便后续流程使用最新的状态
-      gameInfo = (
-        await ctx.database.get("ciyi", {
-          channelId: session.channelId,
-        })
-      )[0];
+    const gameInfo = await getTodayGame(session);
+    if (!gameInfo) {
+      return await sendMsg(
+        session,
+        "❌ 今日题目暂时无法载入，请稍后再试。"
+      );
     }
 
     // 经过上面的逻辑，如果游戏仍然是结束状态，那说明是“当天”的挑战已结束
@@ -602,82 +571,7 @@ export function apply(ctx: Context, cfg: Config) {
     );
   }
 
-  async function mrtz(session: Session) {
-    const timestamp = session.timestamp;
-    const gameInfo = await ctx.database.get("ciyi", {
-      channelId: session.channelId,
-    });
-    const isNone = gameInfo.length === 0;
-    if (!isNone) {
-      if (isSameDayInChina(timestamp, gameInfo[0].lastStartTimestamp)) {
-        return await sendMsg(
-          session,
-          gameInfo[0].isOver
-            ? `⚠️ 今日挑战已结束。答案是「${gameInfo[0].answer}」。\n明日零点换新题。`
-            : `⚠️ 今日挑战已开题，已猜 ${gameInfo[0].history.length} 词。\n继续报词：ciyi.猜 山水`
-        );
-      }
-      if (!gameInfo[0].isOver) {
-        return await sendMsg(
-          session,
-          `⚠️ 上一题还没解出来，已猜 ${gameInfo[0].history.length} 词。\n继续报词：ciyi.猜 山水`
-        );
-      }
-    }
-
-    // 首次开题时表里还没有记录，取旧词表要先绕开这个空
-    const oldGuessedWords = isNone ? [] : gameInfo[0].guessedWords;
-    const answer = getNewUniqueAnswer(oldGuessedWords);
-    if (!answer) {
-      logger.warn("没有可用的词语，无法开始新游戏");
-      return await sendMsg(session, "❌ 开始新挑战失败：题库已尽。");
-    }
-
-    const rankList = (await fetchCiYi(answer))?.trim().split("\n");
-    if (!rankList) {
-      logger.warn(`获取词库 ${answer}.txt 失败`);
-      return await sendMsg(
-        session,
-        "❌ 开始新挑战失败：无法获取词库，请稍后再试。"
-      );
-    }
-
-    if (isNone) {
-      await ctx.database.create("ciyi", {
-        channelId: session.channelId,
-        answer,
-        lastStartTimestamp: new Date(timestamp),
-        guessedWords: [`${answer}`],
-        rankList: rankList,
-        history: [],
-        isOver: false,
-        guessedHistoryInOneGame: [],
-      });
-    } else {
-      await ctx.database.set(
-        "ciyi",
-        { channelId: session.channelId },
-        {
-          answer,
-          lastStartTimestamp: new Date(timestamp),
-          guessedWords: [...oldGuessedWords, `${answer}`],
-          rankList: rankList,
-          isOver: false,
-          guessedHistoryInOneGame: [],
-          history: [],
-        }
-      );
-    }
-
-    const left = Math.max(0, questionList.length - (oldGuessedWords.length + 1));
-    return await sendCard(
-      session,
-      () => renderStartCard(ctx.canvas, { total: rankList.length, words: allWords.length, left }),
-      startText(left)
-    );
-  }
-
-  async function fetchCiYi(word: string): Promise<string> {
+  async function fetchCiYi(word: string): Promise<string | null> {
     const url = `https://ci-ying.oss-cn-zhangjiakou.aliyuncs.com/v1/ci-yi-list/${word}.txt`;
 
     try {
