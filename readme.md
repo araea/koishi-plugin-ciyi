@@ -1,49 +1,27 @@
 koishi-plugin-ciyi
 ==================
 
-[<img alt="github" src="https://img.shields.io/badge/github-araea/ci_yi-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/araea/koishi-plugin-ciyi)
+[<img alt="github" src="https://img.shields.io/badge/github-araea/koishi__plugin__ciyi-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/araea/koishi-plugin-ciyi)
 [<img alt="npm" src="https://img.shields.io/npm/v/koishi-plugin-ciyi.svg?style=for-the-badge&color=fc8d62&logo=npm" height="20">](https://www.npmjs.com/package/koishi-plugin-ciyi)
 
-Koishi 的词意（猜词游戏）插件。根据词语的含义相似程度，猜测正确的词语。
-
-每天藏起一个两字词。你报词，它回你这个词与答案的语义排名 —— 名次越小越近，`#1`
-就是答案本身；同时给出它在相似度榜单上的左右邻居，各遮去一字。
+Koishi 的词意猜词插件。
 
 ## 使用
 
-1. 设置指令别名（推荐把 `ciyi.猜` 设为 `猜`）。
-2. 发送 `ciyi` 查看图文玩法说明。
+设置指令别名后，发送 `ciyi` 查看玩法。每日藏一个两字词，按语义排名提示远近。
 
-| 指令 | 作用 |
+## 指令
+
+| 指令 | 说明 |
 | --- | --- |
 | `ciyi` | 玩法说明 |
-| `ciyi.每日挑战` | 开今天的题 |
-| `ciyi.猜 山水` | 报一个两字词 |
-| `ciyi.排行榜` | 累计猜中次数榜 |
-
-## 图片
-
-启用 Koishi Canvas 服务后渲染「墨与纸」风格卡片：宣纸底、古籍双线框、
-朱砂印，每个字住在自己的田字格里，隐去的字只留空格与虚线中缝。猜测按名次由近及远
-排列，配六档亲疏色阶 —— 咫尺 / 毗邻 / 相近 / 沾边 / 疏远 / 天涯。
-
-插件复用 Koishi 的通用 `canvas` 服务。`koishi-plugin-puppeteer` 已经自带服务实现，原本启用了
-Puppeteer 的用户无需再安装 `@napi-rs/canvas` 或其他大型原生依赖。
-
-没有 Canvas 服务、渲染失败或在配置里关掉「渲染图片」时，自动回退为排版等价的文本，
-玩法不受影响。
-
-如果需要图片但尚未启用服务，可安装并启用 `koishi-plugin-puppeteer`；它是可选依赖，不会随
-词意插件强制下载。只使用文本玩法时无需安装任何绘图后端。
-
-## 致谢
-
-- [Koishi](https://koishi.chat/)
-- [词影](https://cy.surprising.studio/)
+| `ciyi.每日挑战` | 今日题目 |
+| `ciyi.猜 <词>` | 提交猜测 |
+| `ciyi.排行榜` | 猜中次数榜 |
 
 ## QQ 群
 
-- 956758505
+956758505
 
 <br>
 
