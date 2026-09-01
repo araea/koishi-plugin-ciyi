@@ -853,7 +853,9 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
 }
 
 export function renderRankCard(service: CanvasService, opts: RankOptions): Promise<Buffer> {
-  const innerW = s(620);
+  const innerW = s(640);
+  const rankPadX = s(32);
+  const rankInnerPad = s(20);
   // 排行区的每一段都单独计高，避免空榜提示或末行落进固定在底部的页脚。
   const headerH = s(87);
   const contentGap = s(20);
@@ -866,18 +868,24 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
   const innerH = headerH + contentGap + contentH + footerGap + footerH;
 
   return toPng(service, innerW, innerH, (ctx, ix, iy, iw, ih) => {
+    const panelX = ix + rankPadX;
+    const panelW = iw - rankPadX * 2;
+    const contentLeft = panelX + rankInnerPad;
+    const contentRight = panelX + panelW - rankInnerPad;
+
     let y = iy + drawHeader(ctx, ix, iy, iw, "每日挑战 · 累计猜中", {
       big: String(opts.players),
       cap: "上榜人数",
     });
     y += s(20);
 
+    drawPanel(ctx, panelX, y, panelW, contentH);
+
     if (!opts.entries.length) {
-      drawPanel(ctx, ix + s(22), y, iw - s(44), emptyH);
       textCenter(
         ctx,
         "榜上无名。",
-        ix + iw / 2,
+        panelX + panelW / 2,
         y + s(31),
         `${s(13.5)}px ${FONT_SERIF}`,
         C.ink3
@@ -885,7 +893,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
       textCenter(
         ctx,
         "今日第一个猜中的人，会写在这里。",
-        ix + iw / 2,
+        panelX + panelW / 2,
         y + s(61),
         `${s(13.5)}px ${FONT_SERIF}`,
         C.ink3
@@ -898,19 +906,19 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
 
         if (e.me) {
           ctx.fillStyle = "rgba(178,58,46,0.055)";
-          ctx.fillRect(ix + s(22), ry, iw - s(44), rowH);
+          ctx.fillRect(panelX, ry, panelW, rowH);
         }
 
         if (i > 0) {
           ctx.strokeStyle = C.rule;
           ctx.beginPath();
-          ctx.moveTo(ix + s(22), ry);
-          ctx.lineTo(ix + iw - s(22), ry);
+          ctx.moveTo(contentLeft, ry);
+          ctx.lineTo(contentRight, ry);
           ctx.stroke();
         }
 
         const posSize = s(30);
-        const px = ix + s(26);
+        const px = contentLeft;
         const py = midY - posSize / 2;
         const posColors = [
           { bg: C.seal, fg: "#F7F1E5", border: C.seal },
@@ -928,12 +936,15 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         const nameX = px + posSize + s(14);
         const nameFont = `${s(15)}px ${FONT_SERIF}`;
         const score = String(e.score);
-        const scoreRight = ix + iw - s(38);
-        const scoreLeft = scoreRight - textWidth(score, s(19));
+        const unitFont = s(11.5);
+        const unitW = textWidth("次", unitFont);
+        const scoreFont = s(19);
+        const scoreRight = contentRight - unitW - s(8);
+        const scoreLeft = scoreRight - textWidth(score, scoreFont);
         const meWidth = e.me ? textWidth("我", s(10.5)) + s(18) : 0;
         const fittedName = ellipsize(
           name,
-          Math.max(0, scoreLeft - s(18) - nameX - meWidth),
+          Math.max(0, scoreLeft - s(16) - nameX - meWidth),
           s(15)
         );
         textLeft(ctx, fittedName, nameX, midY, nameFont, C.ink);
@@ -947,10 +958,10 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
           score,
           scoreRight,
           midY,
-          `700 ${s(19)}px ${FONT_NUM}`,
+          `700 ${scoreFont}px ${FONT_NUM}`,
           C.ink
         );
-        textRight(ctx, "次", ix + iw - s(22), midY, `${s(11.5)}px ${FONT_SERIF}`, C.ink3);
+        textRight(ctx, "次", contentRight, midY, `${unitFont}px ${FONT_SERIF}`, C.ink3);
 
         ry += rowH;
       }
@@ -959,7 +970,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         textLeft(
           ctx,
           `⋯ 另有 ${opts.hidden} 人在榜`,
-          ix + s(26),
+          contentLeft,
           ry + s(16),
           `${s(11.5)}px ${FONT_SERIF}`,
           C.ink3
@@ -978,7 +989,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
     textLeft(
       ctx,
       "每猜中一日之词，记一次",
-      ix + s(22),
+      panelX,
       iy + ih - s(30),
       `${s(11.5)}px ${FONT_SERIF}`,
       C.ink3
