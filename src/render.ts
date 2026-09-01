@@ -681,7 +681,7 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
     textLeft(ctx, "ciyi.猜 山水", ix + s(96), y + s(24), `${s(13.5)}px ${FONT_NUM}`, C.ink);
     textLeftFit(
       ctx,
-      `开题并报一个两字词${opts.middleware ? "，也可以直接把词发出来" : ""}`,
+      `开题并报一个两字词${opts.middleware ? "；开题后可直接发词" : ""}`,
       ix + s(230),
       y + s(24),
       iw - s(268),

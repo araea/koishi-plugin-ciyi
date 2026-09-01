@@ -12,7 +12,7 @@ import { BoardRow, History, nearness, tierOf } from "./view";
 export const name = "ciyi";
 export const usage = `## 使用
 
-设置指令别名后，发送 \`ciyi\` 查看玩法。每日藏一个两字词，第一次猜测会自动开题。
+设置指令别名后，发送 \`ciyi\` 查看玩法。每日藏一个两字词，使用 \`ciyi.猜 <词>\` 提交第一次猜测并开题；开题后可直接发送两字词继续猜测。
 
 ## 指令
 
@@ -39,7 +39,7 @@ export const Config: Schema<Config> = Schema.object({
   quoteReply: Schema.boolean().default(false).description("响应时引用"),
   isEnableMiddleware: Schema.boolean()
     .default(true)
-    .description("是否启用中间件（若启用，猜测词语时可以不使用指令直接猜测）"),
+    .description("是否启用中间件（若启用，已开题时可以不使用指令直接猜测）"),
   renderImage: Schema.boolean()
     .default(true)
     .description("渲染图片（复用 Koishi Canvas 服务；不可用时使用等价文本）"),
@@ -80,6 +80,52 @@ export interface CiyiRank {
 
 export type { History };
 
+/**
+ * 裸词中间件只接受一条完整、无修饰的两字中文纯文本消息。
+ * 引用、@、图片、富文本以及机器人消息都可能只是普通聊天的一部分，不能据此猜词。
+ */
+export function getMiddlewareGuess(session: Session): string | null {
+  const message = session.event.message;
+  if (
+    !message ||
+    message.quote ||
+    session.event.user?.isBot ||
+    message.user?.isBot
+  ) {
+    return null;
+  }
+
+  const elements = message.elements ?? [];
+  if (elements.length !== 1 || elements[0].type !== "text") {
+    return null;
+  }
+
+  const text = elements[0].attrs.content;
+  if (
+    typeof text !== "string" ||
+    text !== text.trim() ||
+    Array.from(text).length !== 2 ||
+    !/^\p{Script=Han}{2}$/u.test(text) ||
+    !allWords.includes(text)
+  ) {
+    return null;
+  }
+
+  return text;
+}
+
+/** 裸词只能加入已开始且未封题的游戏，不能开题，也不重复提交旧猜测。 */
+export function canHandleMiddlewareGuess(
+  game: Ciyi | null | undefined,
+  guess: string
+): boolean {
+  if (!game || game.isOver) return false;
+  if (game.guessedHistoryInOneGame?.includes(guess)) return false;
+
+  // 损坏或尚未载入完成的榜单不应由普通聊天触发错误提示。
+  return guess === game.answer || game.rankList?.includes(guess) === true;
+}
+
 export function apply(ctx: Context, cfg: Config) {
   // tzb*
   ctx.model.extend(
@@ -117,14 +163,23 @@ export function apply(ctx: Context, cfg: Config) {
   // zjj*
   if (cfg.isEnableMiddleware) {
     ctx.middleware(async (session, next) => {
-      const text = `${h.select(session.event.message.elements, "text")}`;
-      if (text.length !== 2) {
+      const guess = getMiddlewareGuess(session);
+      if (!guess || !session.channelId) return await next();
+
+      try {
+        const [game] = await ctx.database.get("ciyi", {
+          channelId: session.channelId,
+        });
+        if (!canHandleMiddlewareGuess(game, guess)) return await next();
+      } catch (error: any) {
+        logger.warn(
+          "中间件读取游戏状态失败，本次消息不作猜测：%s",
+          error?.message ?? error
+        );
         return await next();
       }
-      if (!allWords.includes(text)) {
-        return await next();
-      }
-      return await session.execute(`ciyi.猜 ${text}`);
+
+      return await session.execute(`ciyi.猜 ${guess}`);
     });
   }
 
@@ -278,11 +333,12 @@ export function apply(ctx: Context, cfg: Config) {
       "词意 · 按意思远近找词",
       `每天藏起一个两字词。你报词，我回它与答案的语义排名 —— 名次越小越近，#1 就是答案本身。`,
       [
-        `开始　ciyi.猜 山水　　开题并报一个两字词${
-          cfg.isEnableMiddleware ? "（也可直接发词）" : ""
-        }`,
+        `开始　ciyi.猜 山水　　开题并报一个两字词`,
+        cfg.isEnableMiddleware
+          ? `续猜　直接发送两字词　仅限已开题且未结束`
+          : null,
         `排行　ciyi.排行榜　　看谁猜中得最多`,
-      ],
+      ].filter(Boolean) as string[],
       [
         `读板　？好）企业（地？ #467 · 沾边`,
         `　　　#467 是「企业」与答案的相近名次`,
