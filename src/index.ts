@@ -12,7 +12,7 @@ import { BoardRow, History, nearness, tierOf } from "./view";
 export const name = "ciyi";
 export const usage = `## 使用
 
-设置指令别名后，发送 \`ciyi\` 查看玩法。每日藏一个两字词，使用 \`ciyi.猜 <词>\` 提交第一次猜测并开题；开题后可直接发送两字词继续猜测。
+设置指令别名后，发送 \`ciyi\` 查看玩法。每日藏一个两字词，使用 \`ciyi.猜 <词>\` 提交第一次猜测并开题；开题后可直接发送两字词继续猜测。\`ciyi.裸词\` 可在当前群临时切换这一行为，不改插件配置，重启后自动复原。
 
 ## 指令
 
@@ -20,6 +20,7 @@ export const usage = `## 使用
 | --- | --- |
 | \`ciyi\` | 玩法说明 |
 | \`ciyi.猜 <词>\` | 开始今日游戏并提交猜测 |
+| \`ciyi.裸词 [开/关]\` | 临时切换本群裸词续猜 |
 | \`ciyi.排行榜\` | 猜中次数榜 |`;
 
 export const inject = { required: ["database"], optional: ["canvas"] };
@@ -39,7 +40,9 @@ export const Config: Schema<Config> = Schema.object({
   quoteReply: Schema.boolean().default(false).description("响应时引用"),
   isEnableMiddleware: Schema.boolean()
     .default(true)
-    .description("是否启用中间件（若启用，已开题时可以不使用指令直接猜测）"),
+    .description(
+      "是否启用中间件（若启用，已开题时可以不使用指令直接猜测；ciyi.裸词 指令可在单个群内临时切换）"
+    ),
   renderImage: Schema.boolean()
     .default(true)
     .description("渲染图片（复用 Koishi Canvas 服务；不可用时使用等价文本）"),
@@ -126,6 +129,48 @@ export function canHandleMiddlewareGuess(
   return guess === game.answer || game.rankList?.includes(guess) === true;
 }
 
+export type MiddlewareSwitch =
+  | { error: string }
+  | {
+      /** 写回本群覆盖表的新值；undefined 表示清除覆盖，回到插件配置 */
+      override: boolean | undefined;
+      /** 切换后的生效状态 */
+      on: boolean;
+      /** 本次是否清除了本群已有的临时改动 */
+      reverted: boolean;
+    };
+
+/**
+ * 裸词开关是「插件配置」与「本群临时相反」之间的往返：本群从不保留与配置相同的冗余覆盖，
+ * 状态只有两种来历 —— 本群临时改动，或跟随插件配置，回复也因此总能如实相告。
+ * 无参调用是切换，显式 开/关 与配置同值时视作复原，状态 只查不改。
+ */
+export function resolveMiddlewareSwitch(
+  config: boolean,
+  override: boolean | undefined,
+  action: string | null | undefined
+): MiddlewareSwitch {
+  const arg = action?.trim();
+
+  if (!arg) {
+    return override === undefined
+      ? { override: !config, on: !config, reverted: false }
+      : { override: undefined, on: config, reverted: true };
+  }
+  if (arg === "状态") {
+    return { override, on: override ?? config, reverted: false };
+  }
+
+  const on = arg === "开" || arg === "开启";
+  if (!on && arg !== "关" && arg !== "关闭") {
+    return { error: "裸词开关只认 开 / 关 / 状态" };
+  }
+  if (on === config) {
+    return { override: undefined, on: config, reverted: override !== undefined };
+  }
+  return { override: on, on, reverted: false };
+}
+
 export function apply(ctx: Context, cfg: Config) {
   // tzb*
   ctx.model.extend(
@@ -160,28 +205,35 @@ export function apply(ctx: Context, cfg: Config) {
   const random = new Random(() => Math.random());
   const RULE = "────────────";
 
-  // zjj*
-  if (cfg.isEnableMiddleware) {
-    ctx.middleware(async (session, next) => {
-      const guess = getMiddlewareGuess(session);
-      if (!guess || !session.channelId) return await next();
+  // 裸词开关的临时改动只落在当前频道，不动插件配置；插件重载后自然回到配置默认
+  const middlewareOverrides = new Map<string, boolean>();
+  const middlewareOn = (channelId: string | undefined) =>
+    channelId === undefined
+      ? cfg.isEnableMiddleware
+      : middlewareOverrides.get(channelId) ?? cfg.isEnableMiddleware;
 
-      try {
-        const [game] = await ctx.database.get("ciyi", {
-          channelId: session.channelId,
-        });
-        if (!canHandleMiddlewareGuess(game, guess)) return await next();
-      } catch (error: any) {
-        logger.warn(
-          "中间件读取游戏状态失败，本次消息不作猜测：%s",
-          error?.message ?? error
-        );
-        return await next();
-      }
+  // zjj* 常驻注册，以本群生效状态做闸门，ciyi.裸词 才能即时切换
+  ctx.middleware(async (session, next) => {
+    if (!session.channelId || !middlewareOn(session.channelId)) return await next();
 
-      return await session.execute(`ciyi.猜 ${guess}`);
-    });
-  }
+    const guess = getMiddlewareGuess(session);
+    if (!guess) return await next();
+
+    try {
+      const [game] = await ctx.database.get("ciyi", {
+        channelId: session.channelId,
+      });
+      if (!canHandleMiddlewareGuess(game, guess)) return await next();
+    } catch (error) {
+      logger.warn(
+        "中间件读取游戏状态失败，本次消息不作猜测：%s",
+        error instanceof Error ? error.message : String(error)
+      );
+      return await next();
+    }
+
+    return await session.execute(`ciyi.猜 ${guess}`);
+  });
 
   // zl*
   ctx.command("ciyi", "词意（猜词游戏）").action(async ({ session }) => {
@@ -198,6 +250,34 @@ export function apply(ctx: Context, cfg: Config) {
   ctx.command("ciyi.排行榜", "累计猜中次数榜").action(async ({ session }) => {
     return await phb(session);
   });
+  // lw*
+  ctx
+    .command("ciyi.裸词 [state:string]", "临时开关本群的裸词续猜")
+    .usage("例：ciyi.裸词（切换）· ciyi.裸词 开 · ciyi.裸词 关 · ciyi.裸词 状态")
+    .action(async ({ session }, state) => {
+      const result = resolveMiddlewareSwitch(
+        cfg.isEnableMiddleware,
+        session.channelId === undefined
+          ? undefined
+          : middlewareOverrides.get(session.channelId),
+        state
+      );
+      if ("error" in result) {
+        return await sendMsg(session, `⚠️ ${result.error}。例：ciyi.裸词 开`);
+      }
+
+      if (result.override === undefined) middlewareOverrides.delete(session.channelId);
+      else middlewareOverrides.set(session.channelId, result.override);
+
+      return await sendMsg(
+        session,
+        middlewareSwitchText({
+          on: result.on,
+          temporary: result.override !== undefined,
+          reverted: result.reverted,
+        })
+      );
+    });
 
   // hs*
   function getNewUniqueAnswer(oldGuessedWords: string[]): string | null {
@@ -328,16 +408,15 @@ export function apply(ctx: Context, cfg: Config) {
     );
   }
 
-  function introText(): string {
+  function introText(channelOn: boolean): string {
     return textCard(
       "词意 · 按意思远近找词",
       `每天藏起一个两字词。你报词，我回它与答案的语义排名 —— 名次越小越近，#1 就是答案本身。`,
       [
         `开始　ciyi.猜 山水　　开题并报一个两字词`,
-        cfg.isEnableMiddleware
-          ? `续猜　直接发送两字词　仅限已开题且未结束`
-          : null,
+        channelOn ? `续猜　直接发送两字词　仅限已开题且未结束` : null,
         `排行　ciyi.排行榜　　看谁猜中得最多`,
+        `切换　ciyi.裸词 开/关　　临时改本群续猜方式`,
       ].filter(Boolean) as string[],
       [
         `读板　？好）企业（地？ #467 · 沾边`,
@@ -351,6 +430,28 @@ export function apply(ctx: Context, cfg: Config) {
       ],
       `词库 ${allWords.length.toLocaleString()} 词，题库 ${questionList.length.toLocaleString()} 题，一日一词。`
     );
+  }
+
+  /** 裸词开关的回复：状态只有「本群临时」与「跟随插件配置」两种来历，如实相告。 */
+  function middlewareSwitchText(o: {
+    on: boolean;
+    temporary: boolean;
+    reverted: boolean;
+  }): string {
+    const mark = o.on ? "✅" : "⛔";
+    const state = o.on ? "开启" : "停用";
+    const config = cfg.isEnableMiddleware ? "开启" : "停用";
+
+    if (!o.temporary) {
+      return `${mark} 裸词续猜 · ${o.reverted ? "已复原，" : ""}跟随插件配置（${state}）`;
+    }
+    const hint = o.on
+      ? "开题后直接发送两字词即可续猜"
+      : "续猜请用 ciyi.猜 山水";
+    return [
+      `${mark} 裸词续猜 · 本群临时${state}（插件配置：${config}）`,
+      `${hint}；再次发送 ciyi.裸词 复原`,
+    ].join("\n");
   }
 
   function winText(o: {
@@ -421,15 +522,17 @@ export function apply(ctx: Context, cfg: Config) {
 
   // zlhs* 指令实现
   async function wf(session: Session) {
+    // 本群可能用 ciyi.裸词 临时改过续猜方式，玩法说明要按本群的生效状态来讲
+    const channelOn = middlewareOn(session.channelId);
     return await sendCard(
       session,
       () =>
         renderIntroCard(ctx.canvas, {
           total: allWords.length,
           words: allWords.length,
-          middleware: cfg.isEnableMiddleware,
+          middleware: channelOn,
         }),
-      introText()
+      introText(channelOn)
     );
   }
 

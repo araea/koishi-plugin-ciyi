@@ -5,6 +5,7 @@ import {
   canHandleMiddlewareGuess,
   Ciyi,
   getMiddlewareGuess,
+  resolveMiddlewareSwitch,
 } from "../src";
 
 function session(
@@ -91,4 +92,77 @@ test("未结束的旧题仍可继续，但重复词与榜外词不触发", () =>
   assert.equal(canHandleMiddlewareGuess(active, "天地"), false);
   assert.equal(canHandleMiddlewareGuess(active, "企业"), false);
   assert.equal(canHandleMiddlewareGuess(game({ rankList: [] }), "天地"), false);
+});
+
+test("无参切换在「配置默认」与「临时相反」之间往返", () => {
+  assert.deepEqual(resolveMiddlewareSwitch(true, undefined, undefined), {
+    override: false,
+    on: false,
+    reverted: false,
+  });
+  assert.deepEqual(resolveMiddlewareSwitch(false, undefined, undefined), {
+    override: true,
+    on: true,
+    reverted: false,
+  });
+  assert.deepEqual(resolveMiddlewareSwitch(true, false, undefined), {
+    override: undefined,
+    on: true,
+    reverted: true,
+  });
+  assert.deepEqual(resolveMiddlewareSwitch(false, true, ""), {
+    override: undefined,
+    on: false,
+    reverted: true,
+  });
+});
+
+test("显式开/关与配置同值时回到配置，不留与配置相同的冗余覆盖", () => {
+  assert.deepEqual(resolveMiddlewareSwitch(true, undefined, "开"), {
+    override: undefined,
+    on: true,
+    reverted: false,
+  });
+  assert.deepEqual(resolveMiddlewareSwitch(true, false, "开启"), {
+    override: undefined,
+    on: true,
+    reverted: true,
+  });
+  assert.deepEqual(resolveMiddlewareSwitch(false, undefined, "关"), {
+    override: undefined,
+    on: false,
+    reverted: false,
+  });
+  assert.deepEqual(resolveMiddlewareSwitch(false, true, "关闭"), {
+    override: undefined,
+    on: false,
+    reverted: true,
+  });
+  assert.deepEqual(resolveMiddlewareSwitch(true, undefined, "关"), {
+    override: false,
+    on: false,
+    reverted: false,
+  });
+  assert.deepEqual(resolveMiddlewareSwitch(false, undefined, "开"), {
+    override: true,
+    on: true,
+    reverted: false,
+  });
+});
+
+test("状态查询只查不改，其余参数报用法错误", () => {
+  assert.deepEqual(resolveMiddlewareSwitch(true, false, "状态"), {
+    override: false,
+    on: false,
+    reverted: false,
+  });
+  assert.deepEqual(resolveMiddlewareSwitch(true, undefined, " 状态 "), {
+    override: undefined,
+    on: true,
+    reverted: false,
+  });
+  for (const bad of ["切换", "on", "off", "山水"]) {
+    const result = resolveMiddlewareSwitch(true, undefined, bad);
+    assert.equal("error" in result, true, `参数「${bad}」应报错`);
+  }
 });

@@ -664,7 +664,7 @@ export function renderBoardCard(service: CanvasService, opts: BoardOptions): Pro
 export function renderIntroCard(service: CanvasService, opts: IntroOptions): Promise<Buffer> {
   const innerW = s(720);
   // 所有区块按真实占用高度累加，页脚与最后一块之间保留完整呼吸区。
-  const innerH = s(688);
+  const innerH = s(716);
 
   return toPng(service, innerW, innerH, (ctx, ix, iy, iw, ih) => {
     let y = iy + drawHeader(ctx, ix, iy, iw, "按意思远近找词 · 每日一题", {
@@ -675,7 +675,7 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
 
     y += drawSectionTitle(ctx, ix + s(22), y, iw - s(44), "玩法");
     y += s(11);
-    const p1h = s(76);
+    const p1h = s(104);
     drawPanel(ctx, ix + s(22), y, iw - s(44), p1h);
     textLeft(ctx, "开始", ix + s(38), y + s(24), `${s(14)}px ${FONT_SERIF}`, C.seal);
     textLeft(ctx, "ciyi.猜 山水", ix + s(96), y + s(24), `${s(13.5)}px ${FONT_NUM}`, C.ink);
@@ -688,9 +688,20 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       `${s(14)}px ${FONT_SERIF}`,
       C.ink
     );
-    textLeft(ctx, "排行", ix + s(38), y + s(52), `${s(14)}px ${FONT_SERIF}`, C.seal);
-    textLeft(ctx, "ciyi.排行榜", ix + s(96), y + s(52), `${s(13.5)}px ${FONT_NUM}`, C.ink);
-    textLeft(ctx, "看谁猜中得最多", ix + s(230), y + s(52), `${s(14)}px ${FONT_SERIF}`, C.ink);
+    textLeft(ctx, "切换", ix + s(38), y + s(52), `${s(14)}px ${FONT_SERIF}`, C.seal);
+    textLeft(ctx, "ciyi.裸词 开/关", ix + s(96), y + s(52), `${s(13.5)}px ${FONT_NUM}`, C.ink);
+    textLeftFit(
+      ctx,
+      "临时改本群的续猜方式",
+      ix + s(230),
+      y + s(52),
+      iw - s(268),
+      `${s(14)}px ${FONT_SERIF}`,
+      C.ink
+    );
+    textLeft(ctx, "排行", ix + s(38), y + s(80), `${s(14)}px ${FONT_SERIF}`, C.seal);
+    textLeft(ctx, "ciyi.排行榜", ix + s(96), y + s(80), `${s(13.5)}px ${FONT_NUM}`, C.ink);
+    textLeft(ctx, "看谁猜中得最多", ix + s(230), y + s(80), `${s(14)}px ${FONT_SERIF}`, C.ink);
     y += p1h + s(19);
 
     y += drawSectionTitle(ctx, ix + s(22), y, iw - s(44), "读板");
