@@ -1,41 +1,27 @@
-koishi-plugin-ciyi
-==================
+# koishi-plugin-ciyi
 
-[<img alt="github" src="https://img.shields.io/badge/github-araea/koishi__plugin__ciyi-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/araea/koishi-plugin-ciyi)
-[<img alt="npm" src="https://img.shields.io/npm/v/koishi-plugin-ciyi.svg?style=for-the-badge&color=fc8d62&logo=npm" height="20">](https://www.npmjs.com/package/koishi-plugin-ciyi)
+词意猜词插件。每天生成一个两字词，在群内进行猜测。
 
-Koishi 的词意猜词插件。
+## 安装
 
-## 使用
+~~~sh
+yarn add koishi-plugin-ciyi
+~~~
 
-设置指令别名后，发送 `ciyi` 查看玩法。每日藏一个两字词，使用 `ciyi.猜 <词>` 提交第一次猜测并开题；开题后可直接发送两字词继续猜测。`ciyi.裸词` 可在当前群临时切换这一行为，不改插件配置，重启后自动复原。
+在 Koishi 配置中启用 koishi-plugin-ciyi，并提供 database 服务；需要图片输出时再提供 canvas 服务。
 
 ## 指令
 
 | 指令 | 说明 |
 | --- | --- |
-| `ciyi` | 玩法说明 |
-| `ciyi.猜 <词>` | 开始今日游戏并提交猜测 |
-| `ciyi.裸词 [开/关]` | 临时切换本群裸词续猜 |
-| `ciyi.排行榜` | 猜中次数榜 |
+| ciyi | 查看玩法 |
+| ciyi.猜 &lt;词&gt; | 开始今日游戏并提交猜测 |
+| ciyi.裸词 [开/关] | 临时切换本群的无前缀续猜 |
+| ciyi.排行榜 | 查看猜中次数排行 |
 
-## QQ 群
+第一次使用 ciyi.猜 &lt;词&gt; 开题；开题后可直接发送两字词继续猜测。裸词设置仅对当前群
+生效，重启后恢复默认。
 
-956758505
+## 许可证
 
-<br>
-
-#### License
-
-<sup>
-Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
-2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
-</sup>
-
-<br>
-
-<sub>
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in this crate by you, as defined in the Apache-2.0 license, shall
-be dual licensed as above, without any additional terms or conditions.
-</sub>
+可按 [Apache-2.0](LICENSE-APACHE) 或 [MIT](LICENSE-MIT) 使用。
