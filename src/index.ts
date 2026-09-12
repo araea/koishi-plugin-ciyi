@@ -12,16 +12,16 @@ import { BoardRow, History, nearness, tierOf } from "./view";
 export const name = "ciyi";
 export const usage = `## 使用
 
-设置指令别名后，发送 \`ciyi\` 查看玩法。每日藏一个两字词，使用 \`ciyi.猜 <词>\` 提交第一次猜测并开题；开题后可直接发送两字词继续猜测。\`ciyi.裸词\` 可在当前群临时切换这一行为，不改插件配置，重启后自动复原。
+设置指令别名后，发送 \`ciyi\` 查看玩法。每日藏一个两字词，首次用 \`ciyi.猜 <词>\` 开题，之后可以直接发送两字词继续猜。裸词设置只对当前群生效，重启后恢复默认。
 
 ## 指令
 
 | 指令 | 说明 |
 | --- | --- |
-| \`ciyi\` | 玩法说明 |
+| \`ciyi\` | 玩法 |
 | \`ciyi.猜 <词>\` | 开始今日游戏并提交猜测 |
-| \`ciyi.裸词 [开/关]\` | 临时切换本群裸词续猜 |
-| \`ciyi.排行榜\` | 猜中次数榜 |`;
+| \`ciyi.裸词 [开/关]\` | 切换本群无前缀续猜 |
+| \`ciyi.排行榜\` | 猜中次数排行 |`;
 
 export const inject = { required: ["database"], optional: ["canvas"] };
 
