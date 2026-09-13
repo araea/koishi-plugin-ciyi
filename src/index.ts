@@ -84,28 +84,23 @@ export interface CiyiRank {
 export type { History };
 
 /**
- * 裸词中间件只接受一条完整、无修饰的两字中文纯文本消息。
- * 引用、@、图片、富文本以及机器人消息都可能只是普通聊天的一部分，不能据此猜词。
+ * 裸词中间件只看消息里的文本，引用、@、图片等非文本元素一律过滤掉：
+ * 回复时带上引用或 @ 是常见操作，不应因此把一条两字词挡在门外。
+ * 剩下的正文仍必须是一条完整、无多余空白的两字中文词。
  */
 export function getMiddlewareGuess(session: Session): string | null {
   const message = session.event.message;
-  if (
-    !message ||
-    message.quote ||
-    session.event.user?.isBot ||
-    message.user?.isBot
-  ) {
+  if (!message || session.event.user?.isBot || message.user?.isBot) {
     return null;
   }
 
-  const elements = message.elements ?? [];
-  if (elements.length !== 1 || elements[0].type !== "text") {
-    return null;
-  }
+  const text = (message.elements ?? [])
+    .filter((element) => element.type === "text")
+    .map((element) => element.attrs.content)
+    .filter((content): content is string => typeof content === "string")
+    .join("");
 
-  const text = elements[0].attrs.content;
   if (
-    typeof text !== "string" ||
     text !== text.trim() ||
     Array.from(text).length !== 2 ||
     !/^\p{Script=Han}{2}$/u.test(text) ||

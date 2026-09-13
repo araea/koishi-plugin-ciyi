@@ -50,7 +50,6 @@ test("只接受一条无修饰的两字中文词语", () => {
     [h.text("ab")],
     [h.text("饿饿")],
     [h.text("山水"), h.text("天地")],
-    [h("at", { id: "bot" }), h.text("山水")],
     [h("image", { url: "https://example.com/image.png" })],
     [h("b", {}, "山水")],
   ]) {
@@ -58,11 +57,29 @@ test("只接受一条无修饰的两字中文词语", () => {
   }
 });
 
-test("引用消息和机器人消息不会触发裸词猜测", () => {
+test("过滤掉引用、@ 等非文本元素后仍能识别裸词", () => {
   assert.equal(
-    getMiddlewareGuess(session([h.text("山水")], { quote: true })),
+    getMiddlewareGuess(session([h("at", { id: "bot" }), h.text("山水")])),
+    "山水"
+  );
+  assert.equal(
+    getMiddlewareGuess(
+      session([
+        h("quote", { id: "quoted" }),
+        h("at", { id: "bot" }),
+        h.text("山水"),
+      ])
+    ),
+    "山水"
+  );
+  // 引用字段不再拦词，但仍要求正文本身干净
+  assert.equal(
+    getMiddlewareGuess(session([h.text(" 山水")], { quote: true })),
     null
   );
+});
+
+test("机器人消息不会触发裸词猜测", () => {
   assert.equal(
     getMiddlewareGuess(session([h.text("山水")], { isBot: true })),
     null
