@@ -7,6 +7,7 @@
 
 import type CanvasService from "@koishijs/canvas";
 import type { CanvasRenderingContext2D as SKRSContext2D } from "@koishijs/canvas";
+import { FONT_STACK, lch, MEDAL, scheme, SHAPE } from "./m3";
 import {
   BoardOptions,
   BoardRow,
@@ -21,26 +22,96 @@ import {
 
 const SCALE = 2;
 
+/** 词意取青绿主调：语义的「远近」是这套图的主题，冷色打底才衬得出近处的暖色。 */
+const HUE = 196;
+const SCHEME = scheme(HUE);
+
+/**
+ * 画布渲染拿不到 CSS 变量，这里把用得到的角色摊平成常量。
+ * 名字与 `--md-sys-color-*` 一一对应，改主题只要动上面的 HUE。
+ */
 const C = {
-  paper: "#F3EDE1",
-  paper2: "#EBE2D0",
-  ink: "#241F1A",
-  ink2: "#6B6259",
-  ink3: "#9B9186",
-  rule: "#D5CAB4",
-  ruleDark: "#C2B69E",
-  seal: "#B23A2E",
-  sealLight: "#B7352B",
-  bg: "#DED4C0",
-  white: "#FFFCF4",
-  fresh: "rgba(178,58,46,0.075)",
+  surface: SCHEME.surface,
+  surfaceContainerLowest: SCHEME.surfaceContainerLowest,
+  surfaceContainerLow: SCHEME.surfaceContainerLow,
+  surfaceContainer: SCHEME.surfaceContainer,
+  surfaceContainerHigh: SCHEME.surfaceContainerHigh,
+  surfaceContainerHighest: SCHEME.surfaceContainerHighest,
+  onSurface: SCHEME.onSurface,
+  onSurfaceVariant: SCHEME.onSurfaceVariant,
+  outline: SCHEME.outline,
+  outlineVariant: SCHEME.outlineVariant,
+  primary: SCHEME.primary,
+  onPrimary: SCHEME.onPrimary,
+  primaryContainer: SCHEME.primaryContainer,
+  onPrimaryContainer: SCHEME.onPrimaryContainer,
 };
 
-const FONT_SERIF = '"Noto Serif CJK SC", "Noto Serif CJK", serif';
-const FONT_NUM = '"Noto Serif CJK SC", "Noto Serif CJK", serif';
+/**
+ * 刚落下的那一行的底色。取色调 94 的浅主色而不是 primaryContainer：
+ * 这是整行的大面积填充，容器色那个饱和度会把行内的文字全部压住。
+ */
+const FRESH = lch(94, 14, HUE);
+
+const FONT_SANS = FONT_STACK;
+/** 数字列与正文同族，`tabular-nums` 由字号处的 600 字重与列宽共同保证对齐。 */
+const FONT_NUM = FONT_STACK;
 
 function s(n: number): number {
   return Math.round(n * SCALE);
+}
+
+/** 圆角矩形。画布里所有容器都走形状刻度，直角只留给分隔线。 */
+function roundRect(
+  ctx: SKRSContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.arcTo(x + w, y, x + w, y + radius, radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.arcTo(x + w, y + h, x + w - radius, y + h, radius);
+  ctx.lineTo(x + radius, y + h);
+  ctx.arcTo(x, y + h, x, y + h - radius, radius);
+  ctx.lineTo(x, y + radius);
+  ctx.arcTo(x, y, x + radius, y, radius);
+  ctx.closePath();
+}
+
+function fillRound(
+  ctx: SKRSContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+  color: string
+) {
+  ctx.fillStyle = color;
+  roundRect(ctx, x, y, w, h, r);
+  ctx.fill();
+}
+
+function strokeRound(
+  ctx: SKRSContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+  color: string,
+  width: number
+) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  roundRect(ctx, x, y, w, h, r);
+  ctx.stroke();
 }
 
 function tierRange(i: number): string {
@@ -156,29 +227,9 @@ function textLeftFit(
   textLeft(ctx, ellipsize(text, maxWidth, fontSizeOf(font)), x, y, font, color, offsetY);
 }
 
-function drawPaper(ctx: SKRSContext2D, x: number, y: number, w: number, h: number) {
-  ctx.fillStyle = C.paper;
-  ctx.fillRect(x, y, w, h);
-
-  ctx.fillStyle = "rgba(255,255,255,0.18)";
-  ctx.fillRect(x, y, w, Math.round(h * 0.34));
-
-  ctx.save();
-  ctx.globalAlpha = 0.028;
-  ctx.strokeStyle = "#78684E";
-  for (let ly = y; ly < y + h; ly += s(4)) {
-    ctx.beginPath();
-    ctx.moveTo(x, ly);
-    ctx.lineTo(x + w, ly);
-    ctx.stroke();
-  }
-  for (let lx = x; lx < x + w; lx += s(3)) {
-    ctx.beginPath();
-    ctx.moveTo(lx, y);
-    ctx.lineTo(lx, y + h);
-    ctx.stroke();
-  }
-  ctx.restore();
+/** 卡片本体：一块比背景高一档的表面，圆角走 extra-large。 */
+function drawCard(ctx: SKRSContext2D, x: number, y: number, w: number, h: number) {
+  fillRound(ctx, x, y, w, h, s(SHAPE.extraLarge), C.surfaceContainerLowest);
 }
 
 async function toPng(
@@ -187,37 +238,18 @@ async function toPng(
   innerH: number,
   draw: (ctx: SKRSContext2D, ix: number, iy: number, iw: number, ih: number) => void
 ): Promise<Buffer> {
-  const ox = s(6);
-  const oy = s(6);
-  const borderOut = s(3);
-  const gap = s(5);
-  const canvasW = (ox + borderOut + gap) * 2 + innerW + s(10);
-  const canvasH = (oy + borderOut + gap) * 2 + innerH + s(10);
+  // 背景与卡片之间只留一圈留白，层次靠容器色差表达，不再套墨框
+  const margin = s(18);
+  const canvasW = margin * 2 + innerW;
+  const canvasH = margin * 2 + innerH;
   const canvas = await service.createCanvas(canvasW, canvasH);
   const ctx = canvas.getContext("2d");
 
   try {
-    ctx.fillStyle = C.bg;
+    ctx.fillStyle = C.surface;
     ctx.fillRect(0, 0, canvasW, canvasH);
-
-    const paperX = ox + borderOut + gap;
-    const paperY = oy + borderOut + gap;
-    drawPaper(ctx, paperX, paperY, innerW, innerH);
-
-    ctx.strokeStyle = C.ink;
-    ctx.lineWidth = borderOut;
-    ctx.strokeRect(
-      ox + borderOut / 2,
-      oy + borderOut / 2,
-      canvasW - ox * 2 - borderOut,
-      canvasH - oy * 2 - borderOut
-    );
-
-    ctx.strokeStyle = C.rule;
-    ctx.lineWidth = s(1);
-    ctx.strokeRect(paperX - s(3), paperY - s(3), innerW + s(6), innerH + s(6));
-
-    draw(ctx, paperX, paperY, innerW, innerH);
+    drawCard(ctx, margin, margin, innerW, innerH);
+    draw(ctx, margin, margin, innerW, innerH);
     return await canvas.toBuffer("image/png");
   } finally {
     await canvas.dispose();
@@ -251,32 +283,28 @@ function drawGridCell(
 ) {
   const half = size / 2;
 
+  // 圆角随格子大小走形状刻度：小格 extra-small，大格到 large
+  const radius = Math.min(s(SHAPE.large), Math.max(s(SHAPE.extraSmall), size * 0.2));
+
   if (mode === "mk") {
-    ctx.fillStyle = "rgba(205,192,168,0.32)";
-    ctx.fillRect(x, y, size, size);
-    ctx.strokeStyle = "#C0B399";
-    ctx.lineWidth = s(borderW);
+    fillRound(ctx, x, y, size, size, radius, C.surfaceContainerHighest);
+    ctx.save();
     ctx.setLineDash([s(3), s(3)]);
-    ctx.strokeRect(x + s(0.5), y + s(0.5), size - s(1), size - s(1));
-    ctx.setLineDash([]);
-    ctx.strokeStyle = "rgba(150,138,120,0.55)";
-    ctx.lineWidth = s(1);
-    ctx.setLineDash([s(2), s(2)]);
-    ctx.beginPath();
-    ctx.moveTo(x + s(4), y + half);
-    ctx.lineTo(x + size - s(4), y + half);
-    ctx.moveTo(x + half, y + s(4));
-    ctx.lineTo(x + half, y + size - s(4));
-    ctx.stroke();
-    ctx.setLineDash([]);
+    strokeRound(
+      ctx,
+      x + s(0.5),
+      y + s(0.5),
+      size - s(1),
+      size - s(1),
+      radius,
+      C.outline,
+      s(borderW)
+    );
+    ctx.restore();
     return;
   }
 
-  ctx.fillStyle = C.white;
-  ctx.fillRect(x, y, size, size);
-  ctx.strokeStyle = "#B9AC93";
-  ctx.lineWidth = s(borderW);
-  ctx.strokeRect(x + s(0.5), y + s(0.5), size - s(1), size - s(1));
+  fillRound(ctx, x, y, size, size, radius, C.surfaceContainerHigh);
 
   if (ch) {
     const fs = s(fontSize);
@@ -285,8 +313,8 @@ function drawGridCell(
       ch,
       x + half,
       y + half,
-      `600 ${fs}px ${FONT_SERIF}`,
-      C.ink,
+      `600 ${fs}px ${FONT_SANS}`,
+      C.onSurface,
       cjkOffset(fs)
     );
   }
@@ -306,7 +334,7 @@ function drawWordGrid(
   const chars = Array.from(word || "");
 
   if (chars.length === 0) {
-    textCenter(ctx, "—", x + s(14), y + cell / 2, `${s(13)}px ${FONT_SERIF}`, C.ink3);
+    textCenter(ctx, "—", x + s(14), y + cell / 2, `${s(13)}px ${FONT_SANS}`, C.outline);
     return s(28);
   }
 
@@ -322,22 +350,16 @@ function drawWordGrid(
   return cell;
 }
 
+/** 结果图右上角那枚标记块：实心主色 + 反白字，形状走 extra-large。 */
 function drawSeal(ctx: SKRSContext2D, x: number, y: number, size: number, lines: string[]) {
-  ctx.fillStyle = C.seal;
-  ctx.fillRect(x, y, size, size);
-  ctx.strokeStyle = "rgba(247,241,229,0.6)";
-  ctx.lineWidth = s(1.5);
-  ctx.strokeRect(x + s(1.5), y + s(1.5), size - s(3), size - s(3));
-  ctx.strokeStyle = C.seal;
-  ctx.lineWidth = s(4);
-  ctx.strokeRect(x + s(4), y + s(4), size - s(8), size - s(8));
+  fillRound(ctx, x, y, size, size, s(SHAPE.extraLarge), C.primary);
 
   const fs = s(19);
   const lh = fs * 1.06;
   const total = lh * lines.length;
   let cy = y + size / 2 - total / 2 + lh / 2;
   for (const line of lines) {
-    textCenter(ctx, line, x + size / 2, cy, `700 ${fs}px ${FONT_SERIF}`, "#F7F1E5");
+    textCenter(ctx, line, x + size / 2, cy, `600 ${fs}px ${FONT_SANS}`, C.onPrimary);
     cy += lh;
   }
 }
@@ -359,14 +381,14 @@ function drawHeader(
   drawSeal(ctx, innerX + padX, innerY + padTop, sealSize, ["词", "意"]);
 
   const brandX = innerX + padX + sealSize + s(15);
-  textLeft(ctx, "词意", brandX, innerY + padTop + s(14), `700 ${s(26)}px ${FONT_SERIF}`, C.ink);
+  textLeft(ctx, "词意", brandX, innerY + padTop + s(14), `700 ${s(26)}px ${FONT_SANS}`, C.onSurface);
   textLeft(
     ctx,
     "ci yi",
     brandX,
     innerY + padTop + s(36),
     `italic ${s(10)}px ${FONT_NUM}`,
-    C.ink3
+    C.outline
   );
   const subRight = right ? innerX + innerW - padX - s(150) : innerX + innerW - padX;
   textLeftFit(
@@ -375,26 +397,26 @@ function drawHeader(
     brandX,
     innerY + padTop + s(58),
     subRight - brandX,
-    `${s(12.5)}px ${FONT_SERIF}`,
-    C.ink2
+    `${s(12.5)}px ${FONT_SANS}`,
+    C.onSurfaceVariant
   );
 
   if (right) {
     const rx = innerX + innerW - padX;
-    textRight(ctx, right.big, rx, innerY + padTop + s(16), `700 ${s(31)}px ${FONT_NUM}`, C.seal);
-    textRight(ctx, right.cap, rx, innerY + padTop + s(44), `${s(10.5)}px ${FONT_SERIF}`, C.ink3);
+    textRight(ctx, right.big, rx, innerY + padTop + s(16), `700 ${s(31)}px ${FONT_NUM}`, C.primary);
+    textRight(ctx, right.cap, rx, innerY + padTop + s(44), `${s(10.5)}px ${FONT_SANS}`, C.outline);
   }
 
   const lineY = innerY + h;
-  ctx.strokeStyle = C.rule;
+  ctx.strokeStyle = C.outlineVariant;
   ctx.lineWidth = s(1);
   ctx.beginPath();
   ctx.moveTo(innerX, lineY);
   ctx.lineTo(innerX + innerW, lineY);
   ctx.stroke();
 
-  ctx.fillStyle = C.seal;
-  ctx.fillRect(innerX + padX, lineY - s(1), s(54), s(2));
+  // 标题下那道主色短线，圆头
+  fillRound(ctx, innerX + padX, lineY - s(1.5), s(54), s(3), s(SHAPE.full), C.primary);
 
   return h;
 }
@@ -411,10 +433,19 @@ function drawFooter(
   const padY = s(12);
   const h = s(36);
 
-  ctx.fillStyle = "rgba(36,31,26,0.022)";
-  ctx.fillRect(innerX, y, innerW, h + padY * 2);
+  // 图例带比卡片低一档并向内收一点，四角才不会顶出卡片的圆角
+  const inset = s(10);
+  fillRound(
+    ctx,
+    innerX + inset,
+    y,
+    innerW - inset * 2,
+    h + padY * 2,
+    s(SHAPE.large),
+    C.surfaceContainerLow
+  );
 
-  ctx.strokeStyle = C.rule;
+  ctx.strokeStyle = C.outlineVariant;
   ctx.lineWidth = s(1);
   ctx.beginPath();
   ctx.moveTo(innerX, y);
@@ -424,16 +455,15 @@ function drawFooter(
   let lx = innerX + padX;
   const cy = y + padY + h / 2;
   for (const { tier, range } of legendItems) {
-    ctx.fillStyle = tier.color;
-    ctx.fillRect(lx, cy - s(4.5), s(9), s(9));
+    fillRound(ctx, lx, cy - s(4.5), s(9), s(9), s(SHAPE.full), tier.color);
     lx += s(9) + s(6);
-    textLeft(ctx, tier.name, lx, cy, `${s(11.5)}px ${FONT_SERIF}`, C.ink2);
+    textLeft(ctx, tier.name, lx, cy, `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
     lx += textWidth(tier.name, s(11.5)) + s(4);
-    textLeft(ctx, range, lx, cy, `${s(11)}px ${FONT_NUM}`, C.ink3);
+    textLeft(ctx, range, lx, cy, `${s(11)}px ${FONT_NUM}`, C.outline);
     lx += textWidth(range, s(11)) + s(13);
   }
 
-  const tipFont = `${s(11.5)}px ${FONT_SERIF}`;
+  const tipFont = `${s(11.5)}px ${FONT_SANS}`;
   const maxTipWidth = legendItems.length ? s(145) : innerW - padX * 2;
   textRight(
     ctx,
@@ -441,7 +471,7 @@ function drawFooter(
     innerX + innerW - padX,
     cy,
     tipFont,
-    C.ink3
+    C.outline
   );
 
   return h + padY * 2;
@@ -454,37 +484,30 @@ function drawLegendFull(ctx: SKRSContext2D, x: number, y: number, w: number): nu
     const t = TIERS[i];
     const cx = x + (i % 2) * colW;
     const cy = y + Math.floor(i / 2) * rowH;
-    ctx.fillStyle = t.color;
-    ctx.fillRect(cx, cy - s(4.5), s(9), s(9));
-    textLeft(ctx, t.name, cx + s(15), cy, `${s(11.5)}px ${FONT_SERIF}`, C.ink2);
-    textLeft(ctx, tierRange(i), cx + s(52), cy, `${s(11)}px ${FONT_NUM}`, C.ink3);
-    textLeft(ctx, t.note, cx + s(100), cy, `${s(11.5)}px ${FONT_SERIF}`, C.ink3);
+    fillRound(ctx, cx, cy - s(4.5), s(9), s(9), s(SHAPE.full), t.color);
+    textLeft(ctx, t.name, cx + s(15), cy, `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
+    textLeft(ctx, tierRange(i), cx + s(52), cy, `${s(11)}px ${FONT_NUM}`, C.outline);
+    textLeft(ctx, t.note, cx + s(100), cy, `${s(11.5)}px ${FONT_SANS}`, C.outline);
   }
   return rowH * Math.ceil(TIERS.length / 2) + s(8);
 }
 
 function drawSectionTitle(ctx: SKRSContext2D, x: number, y: number, w: number, title: string): number {
-  ctx.fillStyle = C.seal;
-  ctx.fillRect(x, y + s(2), s(6), s(6));
-  textLeft(ctx, title, x + s(15), y + s(5), `${s(11.5)}px ${FONT_SERIF}`, C.ink2);
+  // 标题前的短竖条是主色，和正文的中性色拉开，一眼看得出这是分节
+  fillRound(ctx, x, y - s(1), s(3), s(12), s(SHAPE.full), C.primary);
+  textLeft(ctx, title, x + s(15), y + s(5), `600 ${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
   const tw = textWidth(title, s(11.5));
-  ctx.strokeStyle = C.rule;
+  ctx.strokeStyle = C.outlineVariant;
   ctx.lineWidth = s(1);
-  ctx.setLineDash([s(3), s(4)]);
   ctx.beginPath();
   ctx.moveTo(x + s(15) + tw + s(9), y + s(5));
   ctx.lineTo(x + w, y + s(5));
   ctx.stroke();
-  ctx.setLineDash([]);
   return s(24);
 }
 
 function drawPanel(ctx: SKRSContext2D, x: number, y: number, w: number, h: number) {
-  ctx.fillStyle = "rgba(255,255,255,0.34)";
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = C.rule;
-  ctx.lineWidth = s(1);
-  ctx.strokeRect(x + s(0.5), y + s(0.5), w - s(1), h - s(1));
+  fillRound(ctx, x, y, w, h, s(SHAPE.large), C.surfaceContainer);
 }
 
 function drawNearBar(
@@ -495,12 +518,25 @@ function drawNearBar(
   tier: Tier
 ) {
   const barW = s(88);
-  const barH = s(6);
-  ctx.fillStyle = "rgba(36,31,26,0.09)";
-  ctx.fillRect(x, y - barH / 2, barW, barH);
-  ctx.fillStyle = tier.color;
-  ctx.fillRect(x, y - barH / 2, (barW * pct) / 100, barH);
-  textLeft(ctx, tier.name, x + barW + s(9), y, `${s(12.5)}px ${FONT_SERIF}`, tier.color);
+  const barH = s(8);
+  const gap = s(3);
+  const fillW = Math.max(barH, (barW * pct) / 100);
+  const top = y - barH / 2;
+
+  // 填充与轨道分成两段，中间空一道——M3 新版进度指示器就长这样
+  fillRound(ctx, x, top, fillW, barH, barH / 2, tier.color);
+  if (fillW + gap < barW) {
+    fillRound(
+      ctx,
+      x + fillW + gap,
+      top,
+      barW - fillW - gap,
+      barH,
+      barH / 2,
+      C.surfaceContainerHighest
+    );
+  }
+  textLeft(ctx, tier.name, x + barW + s(9), y, `600 ${s(12.5)}px ${FONT_SANS}`, tier.color);
 }
 
 function measureBoard(opts: BoardOptions): { innerW: number; innerH: number; rowH: number } {
@@ -553,12 +589,12 @@ function drawBoardTable(
 
   const headY = y;
   const fs = s(10.5);
-  textLeft(ctx, "序", noX, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
-  textCenter(ctx, "更近 ◀", nb0 + cols.nb / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
-  textCenter(ctx, "猜测", gw0 + cols.gw / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
-  textCenter(ctx, "▶ 更远", nb1 + cols.nb / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
-  textCenter(ctx, "排名", rk0 + cols.rk / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
-  textCenter(ctx, "亲疏", mt0 + cols.mt / 2, headY, `${fs}px ${FONT_SERIF}`, C.ink3);
+  textLeft(ctx, "序", noX, headY, `${fs}px ${FONT_SANS}`, C.outline);
+  textCenter(ctx, "更近 ◀", nb0 + cols.nb / 2, headY, `${fs}px ${FONT_SANS}`, C.outline);
+  textCenter(ctx, "猜测", gw0 + cols.gw / 2, headY, `${fs}px ${FONT_SANS}`, C.outline);
+  textCenter(ctx, "▶ 更远", nb1 + cols.nb / 2, headY, `${fs}px ${FONT_SANS}`, C.outline);
+  textCenter(ctx, "排名", rk0 + cols.rk / 2, headY, `${fs}px ${FONT_SANS}`, C.outline);
+  textCenter(ctx, "亲疏", mt0 + cols.mt / 2, headY, `${fs}px ${FONT_SANS}`, C.outline);
 
   let ry = y + s(22);
   let ordinal = 0;
@@ -571,10 +607,10 @@ function drawBoardTable(
         `⋯ 另有 ${row.gapBefore} 词未列 ⋯`,
         cx + tableW / 2,
         ry + s(10),
-        `${s(11.5)}px ${FONT_SERIF}`,
-        C.ink3
+        `${s(11.5)}px ${FONT_SANS}`,
+        C.outline
       );
-      ctx.strokeStyle = C.rule;
+      ctx.strokeStyle = C.outlineVariant;
       ctx.beginPath();
       ctx.moveTo(cx, ry + s(20));
       ctx.lineTo(cx + tableW, ry + s(20));
@@ -589,13 +625,12 @@ function drawBoardTable(
     const midY = ry + rowH / 2;
 
     if (fresh) {
-      ctx.fillStyle = C.fresh;
-      ctx.fillRect(cx, ry, tableW, rowH);
-      ctx.fillStyle = C.seal;
-      ctx.fillRect(cx, ry, accentW, rowH);
+      fillRound(ctx, cx, ry, tableW, rowH, s(SHAPE.medium), FRESH);
+      // 行首那道主色标记也收成圆头，和整行的圆角对齐
+      fillRound(ctx, cx, ry + s(4), accentW, rowH - s(8), s(SHAPE.full), C.primary);
     }
 
-    ctx.strokeStyle = ordinal === 1 ? C.ruleDark : C.rule;
+    ctx.strokeStyle = ordinal === 1 ? C.outline : C.outlineVariant;
     ctx.lineWidth = s(1);
     ctx.beginPath();
     ctx.moveTo(cx, ry);
@@ -608,7 +643,7 @@ function drawBoardTable(
       noX,
       midY,
       `${s(13)}px ${FONT_NUM}`,
-      C.ink3
+      C.outline
     );
 
     const nbX = nb0 + (cols.nb - gridWidth(history.leftHint, "sm")) / 2;
@@ -626,7 +661,7 @@ function drawBoardTable(
     const hashW = textWidth("#", s(13));
     const rankBlock = hashW + s(3) + rankWidth;
     const rankLeft = rk0 + (cols.rk - rankBlock) / 2;
-    textLeft(ctx, "#", rankLeft, midY, `${s(13)}px ${FONT_NUM}`, C.ink3);
+    textLeft(ctx, "#", rankLeft, midY, `${s(13)}px ${FONT_NUM}`, C.outline);
     textLeft(ctx, rankText, rankLeft + hashW + s(3), midY, rankFont, tier.color);
 
     drawNearBar(ctx, mtX, midY, pct, tier);
@@ -677,31 +712,31 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
     y += s(11);
     const p1h = s(104);
     drawPanel(ctx, ix + s(22), y, iw - s(44), p1h);
-    textLeft(ctx, "开始", ix + s(38), y + s(24), `${s(14)}px ${FONT_SERIF}`, C.seal);
-    textLeft(ctx, "ciyi.猜 山水", ix + s(96), y + s(24), `${s(13.5)}px ${FONT_NUM}`, C.ink);
+    textLeft(ctx, "开始", ix + s(38), y + s(24), `${s(14)}px ${FONT_SANS}`, C.primary);
+    textLeft(ctx, "ciyi.猜 山水", ix + s(96), y + s(24), `${s(13.5)}px ${FONT_NUM}`, C.onSurface);
     textLeftFit(
       ctx,
       `开题并报一个两字词${opts.middleware ? "；开题后可直接发词" : ""}`,
       ix + s(230),
       y + s(24),
       iw - s(268),
-      `${s(14)}px ${FONT_SERIF}`,
-      C.ink
+      `${s(14)}px ${FONT_SANS}`,
+      C.onSurface
     );
-    textLeft(ctx, "切换", ix + s(38), y + s(52), `${s(14)}px ${FONT_SERIF}`, C.seal);
-    textLeft(ctx, "ciyi.裸词 开/关", ix + s(96), y + s(52), `${s(13.5)}px ${FONT_NUM}`, C.ink);
+    textLeft(ctx, "切换", ix + s(38), y + s(52), `${s(14)}px ${FONT_SANS}`, C.primary);
+    textLeft(ctx, "ciyi.裸词 开/关", ix + s(96), y + s(52), `${s(13.5)}px ${FONT_NUM}`, C.onSurface);
     textLeftFit(
       ctx,
       "临时改本群的续猜方式",
       ix + s(230),
       y + s(52),
       iw - s(268),
-      `${s(14)}px ${FONT_SERIF}`,
-      C.ink
+      `${s(14)}px ${FONT_SANS}`,
+      C.onSurface
     );
-    textLeft(ctx, "排行", ix + s(38), y + s(80), `${s(14)}px ${FONT_SERIF}`, C.seal);
-    textLeft(ctx, "ciyi.排行榜", ix + s(96), y + s(80), `${s(13.5)}px ${FONT_NUM}`, C.ink);
-    textLeft(ctx, "看谁猜中得最多", ix + s(230), y + s(80), `${s(14)}px ${FONT_SERIF}`, C.ink);
+    textLeft(ctx, "排行", ix + s(38), y + s(80), `${s(14)}px ${FONT_SANS}`, C.primary);
+    textLeft(ctx, "ciyi.排行榜", ix + s(96), y + s(80), `${s(13.5)}px ${FONT_NUM}`, C.onSurface);
+    textLeft(ctx, "看谁猜中得最多", ix + s(230), y + s(80), `${s(14)}px ${FONT_SANS}`, C.onSurface);
     y += p1h + s(19);
 
     y += drawSectionTitle(ctx, ix + s(22), y, iw - s(44), "读板");
@@ -726,24 +761,24 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       "这一行是说：「企业」与今日答案的意思相近程度，排在第 467 位。",
       ix + s(38),
       y + s(104),
-      `${s(12)}px ${FONT_SERIF}`,
-      C.ink3
+      `${s(12)}px ${FONT_SANS}`,
+      C.outline
     );
     textLeft(
       ctx,
       "两侧空格各藏一字：左邻更近，右邻更远。",
       ix + s(38),
       y + s(126),
-      `${s(12)}px ${FONT_SERIF}`,
-      C.ink3
+      `${s(12)}px ${FONT_SANS}`,
+      C.outline
     );
     textLeft(
       ctx,
       "名次越小，离答案越近；#1 就是答案本身。",
       ix + s(38),
       y + s(148),
-      `${s(12)}px ${FONT_SERIF}`,
-      C.ink2
+      `${s(12)}px ${FONT_SANS}`,
+      C.onSurfaceVariant
     );
     y += sampleH + s(19);
 
@@ -767,8 +802,8 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       "一日一词，猜中即止，次日零点换题",
       ix + s(22),
       iy + ih - s(30),
-      `${s(11.5)}px ${FONT_SERIF}`,
-      C.ink3
+      `${s(11.5)}px ${FONT_SANS}`,
+      C.outline
     );
   });
 }
@@ -786,15 +821,15 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
 
     drawSeal(ctx, ix + iw - s(80), y - s(13), s(42), ["中"]);
 
-    textLeft(ctx, "今日答案", ix + s(38), y + s(24), `${s(11.5)}px ${FONT_SERIF}`, C.ink3);
+    textLeft(ctx, "今日答案", ix + s(38), y + s(24), `${s(11.5)}px ${FONT_SANS}`, C.outline);
     drawWordGrid(ctx, ix + s(38), y + s(40), opts.answer, "lg");
 
     const ax = ix + iw - s(310);
     if (opts.neighbors.length) {
-      textLeft(ctx, "意思最近的几个词", ax, y + s(24), `${s(11.5)}px ${FONT_SERIF}`, C.ink3);
+      textLeft(ctx, "意思最近的几个词", ax, y + s(24), `${s(11.5)}px ${FONT_SANS}`, C.outline);
       let nx = ax;
       let ny = y + s(48);
-      const chipFont = `${s(14)}px ${FONT_SERIF}`;
+      const chipFont = `${s(14)}px ${FONT_SANS}`;
       const chipRight = ix + iw - s(38);
       for (const word of opts.neighbors) {
         const fittedWord = ellipsize(word, s(116), s(14));
@@ -804,15 +839,21 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
           ny += s(36);
         }
         if (ny + s(14) > y + revealH - s(12)) break;
-        ctx.fillStyle = "rgba(255,255,255,0.55)";
-        ctx.fillRect(nx, ny - s(14), pw, s(28));
-        ctx.strokeStyle = C.rule;
-        ctx.strokeRect(nx + s(0.5), ny - s(14) + s(0.5), pw - s(1), s(28) - s(1));
-        textCenter(ctx, fittedWord, nx + pw / 2, ny, chipFont, C.ink, cjkOffset(s(14)));
+        // 近义词做成药丸形的 chip：次要容器色打底，不再描边
+        fillRound(ctx, nx, ny - s(14), pw, s(28), s(SHAPE.full), SCHEME.secondaryContainer);
+        textCenter(
+          ctx,
+          fittedWord,
+          nx + pw / 2,
+          ny,
+          chipFont,
+          SCHEME.onSecondaryContainer,
+          cjkOffset(s(14))
+        );
         nx += pw + s(7);
       }
     } else {
-      textLeft(ctx, "今日一词，就此收笔。", ax, y + s(50), `${s(13.5)}px ${FONT_SERIF}`, C.ink2);
+      textLeft(ctx, "今日一词，就此收笔。", ax, y + s(50), `${s(13.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
     }
 
     y += revealH + s(14);
@@ -826,11 +867,11 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
     for (let i = 0; i < 3; i++) {
       const sx = ix + s(22) + i * (statW + s(10));
       drawPanel(ctx, sx, y, statW, s(56));
-      textLeft(ctx, stats[i].n, sx + s(14), y + s(22), `700 ${s(23)}px ${FONT_NUM}`, C.seal);
+      textLeft(ctx, stats[i].n, sx + s(14), y + s(22), `700 ${s(23)}px ${FONT_NUM}`, C.primary);
       if (stats[i].u) {
-        textLeft(ctx, stats[i].u, sx + s(14) + textWidth(stats[i].n, s(23)) + s(3), y + s(26), `${s(12)}px ${FONT_SERIF}`, C.ink2);
+        textLeft(ctx, stats[i].u, sx + s(14) + textWidth(stats[i].n, s(23)) + s(3), y + s(26), `${s(12)}px ${FONT_SANS}`, C.onSurfaceVariant);
       }
-      textLeft(ctx, stats[i].c, sx + s(14), y + s(44), `${s(10.5)}px ${FONT_SERIF}`, C.ink3);
+      textLeft(ctx, stats[i].c, sx + s(14), y + s(44), `${s(10.5)}px ${FONT_SANS}`, C.outline);
     }
 
     const quip =
@@ -849,7 +890,7 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
       [],
       footerTip
     );
-    const footerFont = `${s(11.5)}px ${FONT_SERIF}`;
+    const footerFont = `${s(11.5)}px ${FONT_SANS}`;
     const footerTipWidth = textWidth(footerTip, s(11.5));
     textLeftFit(
       ctx,
@@ -858,7 +899,7 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
       iy + ih - s(30),
       iw - s(62) - footerTipWidth,
       footerFont,
-      C.ink2
+      C.onSurfaceVariant
     );
   });
 }
@@ -898,16 +939,16 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         "榜上无名。",
         panelX + panelW / 2,
         y + s(31),
-        `${s(13.5)}px ${FONT_SERIF}`,
-        C.ink3
+        `${s(13.5)}px ${FONT_SANS}`,
+        C.outline
       );
       textCenter(
         ctx,
         "今日第一个猜中的人，会写在这里。",
         panelX + panelW / 2,
         y + s(61),
-        `${s(13.5)}px ${FONT_SERIF}`,
-        C.ink3
+        `${s(13.5)}px ${FONT_SANS}`,
+        C.outline
       );
     } else {
       let ry = y;
@@ -916,12 +957,11 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         const midY = ry + rowH / 2;
 
         if (e.me) {
-          ctx.fillStyle = "rgba(178,58,46,0.055)";
-          ctx.fillRect(panelX, ry, panelW, rowH);
+          fillRound(ctx, panelX, ry, panelW, rowH, s(SHAPE.medium), FRESH);
         }
 
         if (i > 0) {
-          ctx.strokeStyle = C.rule;
+          ctx.strokeStyle = C.outlineVariant;
           ctx.beginPath();
           ctx.moveTo(contentLeft, ry);
           ctx.lineTo(contentRight, ry);
@@ -931,21 +971,17 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         const posSize = s(30);
         const px = contentLeft;
         const py = midY - posSize / 2;
-        const posColors = [
-          { bg: C.seal, fg: "#F7F1E5", border: C.seal },
-          { bg: "#4A5470", fg: "#F7F1E5", border: "#4A5470" },
-          { bg: "#9C7B4B", fg: "#F7F1E5", border: "#9C7B4B" },
-        ];
-        const pc = i < 3 ? posColors[i] : { bg: "rgba(255,255,255,0.4)", fg: C.ink2, border: C.rule };
-        ctx.fillStyle = pc.bg;
-        ctx.fillRect(px, py, posSize, posSize);
-        ctx.strokeStyle = pc.border;
-        ctx.strokeRect(px + s(0.5), py + s(0.5), posSize - s(1), posSize - s(1));
-        textCenter(ctx, String(i + 1), px + posSize / 2, midY, `700 ${s(14)}px ${FONT_NUM}`, pc.fg);
+        // 前三名用固定的金银铜；名次的含义不该跟着主题色变
+        const podium = [MEDAL.gold, MEDAL.silver, MEDAL.bronze];
+        const pc = i < 3
+          ? { bg: podium[i], fg: "#ffffff" }
+          : { bg: C.surfaceContainerHighest, fg: C.onSurfaceVariant };
+        fillRound(ctx, px, py, posSize, posSize, s(SHAPE.full), pc.bg);
+        textCenter(ctx, String(i + 1), px + posSize / 2, midY, `600 ${s(14)}px ${FONT_NUM}`, pc.fg);
 
         const name = e.username || "无名氏";
         const nameX = px + posSize + s(14);
-        const nameFont = `${s(15)}px ${FONT_SERIF}`;
+        const nameFont = `${s(15)}px ${FONT_SANS}`;
         const score = String(e.score);
         const unitFont = s(11.5);
         const unitW = textWidth("次", unitFont);
@@ -958,10 +994,10 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
           Math.max(0, scoreLeft - s(16) - nameX - meWidth),
           s(15)
         );
-        textLeft(ctx, fittedName, nameX, midY, nameFont, C.ink);
+        textLeft(ctx, fittedName, nameX, midY, nameFont, C.onSurface);
         if (e.me) {
           const nw = textWidth(fittedName, s(15));
-          textLeft(ctx, "我", nameX + nw + s(8), midY, `${s(10.5)}px ${FONT_SERIF}`, C.seal);
+          textLeft(ctx, "我", nameX + nw + s(8), midY, `${s(10.5)}px ${FONT_SANS}`, C.primary);
         }
 
         textRight(
@@ -970,9 +1006,9 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
           scoreRight,
           midY,
           `700 ${scoreFont}px ${FONT_NUM}`,
-          C.ink
+          C.onSurface
         );
-        textRight(ctx, "次", contentRight, midY, `${unitFont}px ${FONT_SERIF}`, C.ink3);
+        textRight(ctx, "次", contentRight, midY, `${unitFont}px ${FONT_SANS}`, C.outline);
 
         ry += rowH;
       }
@@ -983,8 +1019,8 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
           `⋯ 另有 ${opts.hidden} 人在榜`,
           contentLeft,
           ry + s(16),
-          `${s(11.5)}px ${FONT_SERIF}`,
-          C.ink3
+          `${s(11.5)}px ${FONT_SANS}`,
+          C.outline
         );
       }
     }
@@ -1002,8 +1038,8 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
       "每猜中一日之词，记一次",
       panelX,
       iy + ih - s(30),
-      `${s(11.5)}px ${FONT_SERIF}`,
-      C.ink3
+      `${s(11.5)}px ${FONT_SANS}`,
+      C.outline
     );
   });
 }
