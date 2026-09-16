@@ -604,7 +604,7 @@ function drawBoardTable(
       ry += s(8);
       textCenter(
         ctx,
-        `⋯ 另有 ${row.gapBefore} 词未列 ⋯`,
+        `…… 另有 ${row.gapBefore} 词未列`,
         cx + tableW / 2,
         ry + s(10),
         `${s(11.5)}px ${FONT_SANS}`,
@@ -727,7 +727,7 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
     textLeft(ctx, "ciyi.裸词 开/关", ix + s(96), y + s(52), `${s(13.5)}px ${FONT_NUM}`, C.onSurface);
     textLeftFit(
       ctx,
-      "临时改本群的续猜方式",
+      "临时改本频道的续猜方式",
       ix + s(230),
       y + s(52),
       iw - s(268),
@@ -1016,7 +1016,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
       if (opts.hidden > 0) {
         textLeft(
           ctx,
-          `⋯ 另有 ${opts.hidden} 人在榜`,
+          `…… 另有 ${opts.hidden} 人在榜`,
           contentLeft,
           ry + s(16),
           `${s(11.5)}px ${FONT_SANS}`,

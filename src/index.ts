@@ -19,7 +19,7 @@ export const usage = `## 使用
 | 指令 | 说明 |
 | --- | --- |
 | \`ciyi\` | 玩法 |
-| \`ciyi.猜 <词>\` | 开始今日游戏并提交猜测 |
+| \`ciyi.猜 <词>\` | 开始今日对局并报一个两字词 |
 | \`ciyi.裸词 [开/关]\` | 开关本频道的无前缀续猜 |
 | \`ciyi.排行榜\` | 累计猜中排行榜 |`;
 
@@ -29,19 +29,20 @@ export const inject = { required: ["database"], optional: ["canvas"] };
 export interface Config {
   atReply: boolean;
   quoteReply: boolean;
-  isEnableMiddleware: boolean;
+  enableDirectInput: boolean;
   renderImage: boolean;
   maxHistory: number;
   maxRank: number;
+  retractDelay: number;
 }
 
 export const Config: Schema<Config> = Schema.object({
   atReply: Schema.boolean().default(false).description("回复时 @ 用户。"),
   quoteReply: Schema.boolean().default(false).description("回复时引用消息。"),
-  isEnableMiddleware: Schema.boolean()
+  enableDirectInput: Schema.boolean()
     .default(true)
     .description(
-      "已开题时，直接发送两字词即可续猜，无需指令前缀。各频道可用「ciyi.裸词」临时切换。"
+      "对局中直接发送两字词即可续猜，无需指令前缀。各频道可用「ciyi.裸词」临时切换。"
     ),
   renderImage: Schema.boolean()
     .default(true)
@@ -51,6 +52,10 @@ export const Config: Schema<Config> = Schema.object({
     .min(0)
     .description("猜测板最多列出的历史条数。最新一次猜测始终会列出。"),
   maxRank: Schema.number().default(10).min(0).description("排行榜最多显示的人数。"),
+  retractDelay: Schema.number()
+    .min(0)
+    .default(0)
+    .description("自动撤回延迟（秒），0 表示不撤回。"),
 });
 
 // smb*
@@ -198,14 +203,16 @@ export function apply(ctx: Context, cfg: Config) {
   // cl*
   const logger = ctx.logger("ciyi");
   const random = new Random(() => Math.random());
-  const RULE = "────────────";
+
+  /** 同一频道同时只处理一次猜测，避免两次提交互相覆盖猜测板。 */
+  const busy = new Set<string>();
 
   // 裸词开关的临时改动只落在当前频道，不动插件配置；插件重载后自然回到配置默认
   const middlewareOverrides = new Map<string, boolean>();
   const middlewareOn = (channelId: string | undefined) =>
     channelId === undefined
-      ? cfg.isEnableMiddleware
-      : middlewareOverrides.get(channelId) ?? cfg.isEnableMiddleware;
+      ? cfg.enableDirectInput
+      : middlewareOverrides.get(channelId) ?? cfg.enableDirectInput;
 
   // zjj* 常驻注册，以本群生效状态做闸门，ciyi.裸词 才能即时切换
   ctx.middleware(async (session, next) => {
@@ -236,7 +243,7 @@ export function apply(ctx: Context, cfg: Config) {
   });
   // c*
   ctx
-    .command("ciyi.猜 <guess:string>", "报一个两字词")
+    .command("ciyi.猜 <guess:string>", "开题并报一个两字词")
     .usage("例：ciyi.猜 山水")
     .action(async ({ session }, guess) => {
       return await c(session, guess?.trim());
@@ -251,7 +258,7 @@ export function apply(ctx: Context, cfg: Config) {
     .usage("例：ciyi.裸词（切换）· ciyi.裸词 开 · ciyi.裸词 关 · ciyi.裸词 状态")
     .action(async ({ session }, state) => {
       const result = resolveMiddlewareSwitch(
-        cfg.isEnableMiddleware,
+        cfg.enableDirectInput,
         session.channelId === undefined
           ? undefined
           : middlewareOverrides.get(session.channelId),
@@ -367,7 +374,7 @@ export function apply(ctx: Context, cfg: Config) {
       .map((s) => (Array.isArray(s) ? s.filter(Boolean).join("\n") : s))
       .filter((s): s is string => !!s && !!s.trim())
       .join("\n\n");
-    return [`▍${title}`, RULE, body].filter(Boolean).join("\n");
+    return [`▍${title}`, body].filter(Boolean).join("\n");
   }
 
   /** 邻词的文本形态：隐去的字写成「？」，没有邻居写成「──」。 */
@@ -380,7 +387,7 @@ export function apply(ctx: Context, cfg: Config) {
     const lines: string[] = [];
     rows.forEach((row, i) => {
       // 断档记号紧贴在被拎出来的那一手之前，与图片里的位置一致
-      if (row.gapBefore) lines.push(`　⋯ 另有 ${row.gapBefore} 词未列 ⋯`);
+      if (row.gapBefore) lines.push(`　…… 另有 ${row.gapBefore} 词未列`);
       const { guess, rank, leftHint, rightHint } = row.history;
       const mark = row.fresh ? "▸" : "　";
       lines.push(
@@ -398,7 +405,7 @@ export function apply(ctx: Context, cfg: Config) {
         ? null
         : `当前最佳 #${best} · ${tierOf(best).name}（${tierOf(best).note}）`,
       lines,
-      hidden > 0 && !tail ? `　⋯ 另有 ${hidden} 词未列 ⋯` : null,
+      hidden > 0 && !tail ? `　…… 另有 ${hidden} 词未列` : null,
       "左邻更近答案，右邻更远；？ 为隐去的字"
     );
   }
@@ -406,12 +413,16 @@ export function apply(ctx: Context, cfg: Config) {
   function introText(channelOn: boolean): string {
     return textCard(
       "词意 · 按意思远近找词",
-      `每天藏起一个两字词。你报词，我回它与答案的语义排名 —— 名次越小越近，#1 就是答案本身。`,
+      [
+        `每天藏起一个两字词。`,
+        `报一个两字词，回它与答案的语义排名。`,
+        `名次越小越近，#1 就是答案本身。`,
+      ],
       [
         `开始　ciyi.猜 山水　　开题并报一个两字词`,
         channelOn ? `续猜　直接发送两字词　仅限已开题且未结束` : null,
-        `排行　ciyi.排行榜　　看谁猜中得最多`,
-        `切换　ciyi.裸词 开/关　　临时改本群续猜方式`,
+        `排行榜　ciyi.排行榜　　看谁猜中得最多`,
+        `切换　ciyi.裸词 开/关　　临时改本频道续猜方式`,
       ].filter(Boolean) as string[],
       [
         `读板　？好）企业（地？ #467 · 沾边`,
@@ -423,7 +434,7 @@ export function apply(ctx: Context, cfg: Config) {
         `亲疏　咫尺 ≤10　毗邻 ≤50　相近 ≤200`,
         `　　　沾边 ≤1000　疏远 ≤5000　天涯 5000+`,
       ],
-      `词库 ${allWords.length.toLocaleString()} 词，题库 ${questionList.length.toLocaleString()} 题，一日一词。`
+      `词库 ${allWords.length.toLocaleString()} 词，一日一词。`
     );
   }
 
@@ -435,17 +446,17 @@ export function apply(ctx: Context, cfg: Config) {
   }): string {
     const mark = "✅";
     const state = o.on ? "开启" : "停用";
-    const config = cfg.isEnableMiddleware ? "开启" : "停用";
+    const config = cfg.enableDirectInput ? "开启" : "停用";
 
     if (!o.temporary) {
-      return `${mark} 裸词续猜 · ${o.reverted ? "已复原，" : ""}跟随插件配置（${state}）`;
+      return `${mark} 裸词续猜 · 跟随插件配置\n当前${state}。${o.reverted ? "本次已复原。" : ""}`;
     }
     const hint = o.on
       ? "开题后直接发送两字词即可续猜"
       : "续猜改用「ciyi.猜 山水」";
     return [
-      `${mark} 裸词续猜 · 本频道临时${state}（插件配置：${config}）`,
-      `${hint}；再次发送「ciyi.裸词」复原`,
+      `${mark} 裸词续猜 · 本频道临时${state}`,
+      `${hint}；插件配置为${config}；再次发送「ciyi.裸词」复原`,
     ].join("\n");
   }
 
@@ -470,24 +481,25 @@ export function apply(ctx: Context, cfg: Config) {
         o.neighbors.length ? `近旁　${o.neighbors.join(" · ")}` : null,
       ].filter(Boolean) as string[],
       o.canStartToday
-        ? "继续 ciyi.猜 山水 · 开启今日新题"
-        : "明日零点换新题 · ciyi.排行榜 看战绩"
+        ? "继续发送「ciyi.猜 山水」开启今日新题"
+        : "明日零点换新题 · 发送「ciyi.排行榜」看战绩"
     );
   }
 
   function rankText(entries: { username: string; score: number }[], hidden: number): string {
     if (!entries.length) {
       return textCard(
-        "词意每日挑战排行榜",
-        "榜上无名。今日第一个猜中的人，名字会写在这里。"
+        "📋 排行榜还空着",
+        "第一个猜中的人，名字会写在这里。",
+        "发送「ciyi.猜 山水」开一局。"
       );
     }
     return textCard(
-      "词意每日挑战排行榜",
+      "📋 词意每日挑战排行榜",
       entries.map(
         (e, i) => `${String(i + 1).padStart(2, "0")}. ${e.username || "无名氏"} ${e.score} 次`
       ),
-      hidden > 0 ? `⋯ 另有 ${hidden} 人在榜 ⋯` : null
+      hidden > 0 ? `…… 另有 ${hidden} 人在榜` : null
     );
   }
 
@@ -503,16 +515,38 @@ export function apply(ctx: Context, cfg: Config) {
     }
   }
 
+  // 自动撤回：同一频道只保留最新一条，上一条延时撤回。
+  const lastMessage = new Map<string, { id: string; timestamp: number }>();
+
+  async function send(session: Session, content: h.Fragment) {
+    const ids = await session.send(content);
+    const messageId = ids?.[0];
+    if (!cfg.retractDelay || !messageId) return;
+    const previous = lastMessage.get(session.channelId);
+    if (previous) {
+      const passed = Date.now() - previous.timestamp;
+      // 超过两分钟的消息撤不回来，留 2 秒余量。
+      if (passed < 118000) {
+        ctx.setTimeout(() => {
+          session.bot
+            .deleteMessage(session.channelId, previous.id)
+            .catch((error) => logger.debug("撤回消息 %s 失败：%s", previous.id, error.message));
+        }, Math.max(0, cfg.retractDelay * 1000 - passed));
+      }
+    }
+    lastMessage.set(session.channelId, { id: messageId, timestamp: Date.now() });
+  }
+
   async function sendCard(session: Session, render: () => Promise<Buffer>, fallback: string) {
     const image = await renderCard(render);
     const prefix: h[] = [];
     if (cfg.quoteReply && session.messageId) prefix.push(h.quote(session.messageId));
     if (cfg.atReply) prefix.push(h.at(session.userId), h("p"));
     if (image) {
-      await session.send([...prefix, image]);
+      await send(session, [...prefix, image]);
       return;
     }
-    await session.send([...prefix, ...h.normalize(fallback)]);
+    await send(session, [...prefix, ...h.normalize(fallback)]);
   }
 
   // zlhs* 指令实现
@@ -615,6 +649,19 @@ export function apply(ctx: Context, cfg: Config) {
       return await sendMsg(session, `⚠️ 「${guess}」不在词库里\n换个常见些的词试试。`);
     }
 
+    if (session.channelId && busy.has(session.channelId)) {
+      return await sendMsg(session, "⏳ 上一手还在处理\n稍等再发一次。");
+    }
+    if (session.channelId) busy.add(session.channelId);
+    try {
+      return await guessOnce(session, guess);
+    } finally {
+      if (session.channelId) busy.delete(session.channelId);
+    }
+  }
+
+  /** 一次猜测的主体：读状态、算、写状态。调用方按频道加锁。 */
+  async function guessOnce(session: Session, guess: string) {
     const gameInfo = await getTodayGame(session);
     if (!gameInfo) {
       return await sendMsg(
@@ -627,7 +674,7 @@ export function apply(ctx: Context, cfg: Config) {
     if (gameInfo.isOver) {
       return await sendMsg(
         session,
-        `💡 今日挑战已结束，答案是「${gameInfo.answer}」。\n明日零点换新题，发送「ciyi.排行榜」看战绩。`
+        `💡 今日挑战已结束，答案是「${gameInfo.answer}」\n明日零点换新题，发送「ciyi.排行榜」看战绩。`
       );
     }
 
@@ -695,7 +742,7 @@ export function apply(ctx: Context, cfg: Config) {
     if (!entry) {
       // 词库与今日榜单理论上同源，真出现落差时说清楚，别让玩家以为是自己打错了
       logger.warn(`「${guess}」不在 ${gameInfo.answer} 的榜单中`);
-      return await sendMsg(session, `⚠️ 「${guess}」不在今日的榜单里\n换个词试试。`);
+      return await sendMsg(session, `⚠️ 「${guess}」不在今日的榜里\n换个词试试。`);
     }
 
     const history = [...gameInfo.history, entry];
@@ -752,6 +799,6 @@ export function apply(ctx: Context, cfg: Config) {
     const prefix: h[] = [];
     if (cfg.quoteReply && session.messageId) prefix.push(h.quote(session.messageId));
     if (cfg.atReply) prefix.push(h.at(session.userId), h("p"));
-    await session.send([...prefix, ...h.normalize(msg)]);
+    await send(session, [...prefix, ...h.normalize(msg)]);
   }
 }
