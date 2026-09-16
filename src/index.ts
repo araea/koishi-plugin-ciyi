@@ -470,7 +470,7 @@ export function apply(ctx: Context, cfg: Config) {
     canStartToday: boolean;
   }): string {
     return textCard(
-      "猜中了 · 今日已封题",
+      "🏆 猜中了 · 今日已封题",
       `答案　${o.answer}`,
       [
         `猜测　${o.attempts} 次`,

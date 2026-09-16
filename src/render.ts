@@ -7,7 +7,16 @@
 
 import type CanvasService from "@koishijs/canvas";
 import type { CanvasRenderingContext2D as SKRSContext2D } from "@koishijs/canvas";
-import { FONT_STACK, lch, MEDAL, scheme, SHAPE } from "./m3";
+import {
+  EMPHASIZED_WEIGHT,
+  FONT_STACK,
+  lch,
+  MEDAL,
+  MONO_STACK,
+  scheme,
+  SHAPE,
+  TYPE,
+} from "./m3";
 import {
   BoardOptions,
   BoardRow,
@@ -45,6 +54,8 @@ const C = {
   onPrimary: SCHEME.onPrimary,
   primaryContainer: SCHEME.primaryContainer,
   onPrimaryContainer: SCHEME.onPrimaryContainer,
+  secondaryContainer: SCHEME.secondaryContainer,
+  onSecondaryContainer: SCHEME.onSecondaryContainer,
 };
 
 /**
@@ -54,8 +65,11 @@ const C = {
 const FRESH = lch(94, 14, HUE);
 
 const FONT_SANS = FONT_STACK;
-/** 数字列与正文同族，`tabular-nums` 由字号处的 600 字重与列宽共同保证对齐。 */
-const FONT_NUM = FONT_STACK;
+/**
+ * 名次、次数、序号这类要对齐的数字走等宽栈；画布没有 `font-variant-numeric`，
+ * 等宽本身就是对齐手段。尾部接上正文栈，汉字才不会掉出等宽那几支字体。
+ */
+const FONT_NUM = `${MONO_STACK},${FONT_STACK}`;
 
 function s(n: number): number {
   return Math.round(n * SCALE);
@@ -173,7 +187,7 @@ function textRight(
 
 /** 保持字号不变，在可用宽度内以省略号收口，避免动态文本挤到相邻栏。 */
 function fontSizeOf(font: string): number {
-  return Number(font.match(/([\d.]+)px/)?.[1] ?? s(12));
+  return Number(font.match(/([\d.]+)px/)?.[1] ?? s(TYPE.bodySmall.size));
 }
 
 /**
@@ -256,13 +270,28 @@ async function toPng(
   }
 }
 
+/*
+ * 三种格子：字号走 TYPE，字重取 EMPHASIZED_WEIGHT（格子里的字原本就是强调），
+ * 圆角走 SHAPE —— 小格 extra-small，中格 small，大格 large。
+ * 格子边长、间距与描边宽度是版式，维持原值。
+ */
 const GRID = {
-  sm: { cell: 26, gap: 4, font: 15, border: 1 },
-  md: { cell: 34, gap: 4, font: 20, border: 1 },
-  lg: { cell: 78, gap: 9, font: 46, border: 1.5 },
+  sm: {
+    cell: 26, gap: 4, border: 1,
+    font: TYPE.labelLarge.size, weight: EMPHASIZED_WEIGHT.label, radius: SHAPE.extraSmall,
+  },
+  md: {
+    cell: 34, gap: 4, border: 1,
+    font: TYPE.titleLarge.size, weight: EMPHASIZED_WEIGHT.title, radius: SHAPE.small,
+  },
+  lg: {
+    cell: 78, gap: 9, border: 1.5,
+    font: TYPE.displayMedium.size, weight: EMPHASIZED_WEIGHT.display, radius: SHAPE.large,
+  },
 } as const;
 
 type GridSize = keyof typeof GRID;
+type GridSpec = (typeof GRID)[GridSize];
 
 function gridWidth(word: string, size: GridSize): number {
   const g = GRID[size];
@@ -278,13 +307,10 @@ function drawGridCell(
   size: number,
   ch: string | null,
   mode: "on" | "mk",
-  fontSize: number,
-  borderW: number
+  g: GridSpec
 ) {
   const half = size / 2;
-
-  // 圆角随格子大小走形状刻度：小格 extra-small，大格到 large
-  const radius = Math.min(s(SHAPE.large), Math.max(s(SHAPE.extraSmall), size * 0.2));
+  const radius = s(g.radius);
 
   if (mode === "mk") {
     fillRound(ctx, x, y, size, size, radius, C.surfaceContainerHighest);
@@ -298,7 +324,7 @@ function drawGridCell(
       size - s(1),
       radius,
       C.outline,
-      s(borderW)
+      s(g.border)
     );
     ctx.restore();
     return;
@@ -307,13 +333,13 @@ function drawGridCell(
   fillRound(ctx, x, y, size, size, radius, C.surfaceContainerHigh);
 
   if (ch) {
-    const fs = s(fontSize);
+    const fs = s(g.font);
     textCenter(
       ctx,
       ch,
       x + half,
       y + half,
-      `600 ${fs}px ${FONT_SANS}`,
+      `${g.weight} ${fs}px ${FONT_SANS}`,
       C.onSurface,
       cjkOffset(fs)
     );
@@ -334,16 +360,16 @@ function drawWordGrid(
   const chars = Array.from(word || "");
 
   if (chars.length === 0) {
-    textCenter(ctx, "—", x + s(14), y + cell / 2, `${s(13)}px ${FONT_SANS}`, C.onSurfaceVariant);
+    textCenter(ctx, "—", x + s(14), y + cell / 2, `${s(TYPE.bodySmall.size)}px ${FONT_SANS}`, C.onSurfaceVariant);
     return s(28);
   }
 
   let cx = x;
   for (let i = 0; i < chars.length; i++) {
     if (i === mask) {
-      drawGridCell(ctx, cx, y, cell, null, "mk", g.font, g.border);
+      drawGridCell(ctx, cx, y, cell, null, "mk", g);
     } else {
-      drawGridCell(ctx, cx, y, cell, chars[i], "on", g.font, g.border);
+      drawGridCell(ctx, cx, y, cell, chars[i], "on", g);
     }
     cx += cell + gap;
   }
@@ -354,12 +380,13 @@ function drawWordGrid(
 function drawSeal(ctx: SKRSContext2D, x: number, y: number, size: number, lines: string[]) {
   fillRound(ctx, x, y, size, size, s(SHAPE.extraLarge), C.primary);
 
-  const fs = s(19);
+  // 印章里是插件的字号标记，走 title 档；两行的行距仍是版式，维持 ×1.06
+  const fs = s(TYPE.titleLarge.size);
   const lh = fs * 1.06;
   const total = lh * lines.length;
   let cy = y + size / 2 - total / 2 + lh / 2;
   for (const line of lines) {
-    textCenter(ctx, line, x + size / 2, cy, `600 ${fs}px ${FONT_SANS}`, C.onPrimary);
+    textCenter(ctx, line, x + size / 2, cy, `${EMPHASIZED_WEIGHT.title} ${fs}px ${FONT_SANS}`, C.onPrimary);
     cy += lh;
   }
 }
@@ -381,13 +408,20 @@ function drawHeader(
   drawSeal(ctx, innerX + padX, innerY + padTop, sealSize, ["词", "意"]);
 
   const brandX = innerX + padX + sealSize + s(15);
-  textLeft(ctx, "词意", brandX, innerY + padTop + s(14), `700 ${s(26)}px ${FONT_SANS}`, C.onSurface);
+  textLeft(
+    ctx,
+    "词意",
+    brandX,
+    innerY + padTop + s(14),
+    `${EMPHASIZED_WEIGHT.headline} ${s(TYPE.headlineMedium.size)}px ${FONT_SANS}`,
+    C.onSurface
+  );
   textLeft(
     ctx,
     "ci yi",
     brandX,
     innerY + padTop + s(36),
-    `italic ${s(10)}px ${FONT_NUM}`,
+    `italic ${s(TYPE.labelSmall.size)}px ${FONT_SANS}`,
     C.onSurfaceVariant
   );
   const subRight = right ? innerX + innerW - padX - s(150) : innerX + innerW - padX;
@@ -397,14 +431,28 @@ function drawHeader(
     brandX,
     innerY + padTop + s(58),
     subRight - brandX,
-    `${s(12.5)}px ${FONT_SANS}`,
+    `${s(TYPE.bodySmall.size)}px ${FONT_SANS}`,
     C.onSurfaceVariant
   );
 
   if (right) {
     const rx = innerX + innerW - padX;
-    textRight(ctx, right.big, rx, innerY + padTop + s(16), `700 ${s(31)}px ${FONT_NUM}`, C.primary);
-    textRight(ctx, right.cap, rx, innerY + padTop + s(44), `${s(10.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
+    textRight(
+      ctx,
+      right.big,
+      rx,
+      innerY + padTop + s(16),
+      `${EMPHASIZED_WEIGHT.headline} ${s(TYPE.headlineLarge.size)}px ${FONT_NUM}`,
+      C.primary
+    );
+    textRight(
+      ctx,
+      right.cap,
+      rx,
+      innerY + padTop + s(44),
+      `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`,
+      C.onSurfaceVariant
+    );
   }
 
   const lineY = innerY + h;
@@ -457,17 +505,17 @@ function drawFooter(
   for (const { tier, range } of legendItems) {
     fillRound(ctx, lx, cy - s(4.5), s(9), s(9), s(SHAPE.full), tier.color);
     lx += s(9) + s(6);
-    textLeft(ctx, tier.name, lx, cy, `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
-    lx += textWidth(tier.name, s(11.5)) + s(4);
-    textLeft(ctx, range, lx, cy, `${s(11)}px ${FONT_NUM}`, C.onSurfaceVariant);
-    lx += textWidth(range, s(11)) + s(13);
+    textLeft(ctx, tier.name, lx, cy, `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`, C.onSurfaceVariant);
+    lx += textWidth(tier.name, s(TYPE.labelSmall.size)) + s(4);
+    textLeft(ctx, range, lx, cy, `${s(TYPE.labelSmall.size)}px ${FONT_NUM}`, C.onSurfaceVariant);
+    lx += textWidth(range, s(TYPE.labelSmall.size)) + s(13);
   }
 
-  const tipFont = `${s(11.5)}px ${FONT_SANS}`;
+  const tipFont = `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`;
   const maxTipWidth = legendItems.length ? s(145) : innerW - padX * 2;
   textRight(
     ctx,
-    ellipsize(tip, maxTipWidth, s(11.5)),
+    ellipsize(tip, maxTipWidth, s(TYPE.labelSmall.size)),
     innerX + innerW - padX,
     cy,
     tipFont,
@@ -485,9 +533,9 @@ function drawLegendFull(ctx: SKRSContext2D, x: number, y: number, w: number): nu
     const cx = x + (i % 2) * colW;
     const cy = y + Math.floor(i / 2) * rowH;
     fillRound(ctx, cx, cy - s(4.5), s(9), s(9), s(SHAPE.full), t.color);
-    textLeft(ctx, t.name, cx + s(15), cy, `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
-    textLeft(ctx, tierRange(i), cx + s(52), cy, `${s(11)}px ${FONT_NUM}`, C.onSurfaceVariant);
-    textLeft(ctx, t.note, cx + s(100), cy, `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
+    textLeft(ctx, t.name, cx + s(15), cy, `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`, C.onSurfaceVariant);
+    textLeft(ctx, tierRange(i), cx + s(52), cy, `${s(TYPE.labelSmall.size)}px ${FONT_NUM}`, C.onSurfaceVariant);
+    textLeft(ctx, t.note, cx + s(100), cy, `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`, C.onSurfaceVariant);
   }
   return rowH * Math.ceil(TIERS.length / 2) + s(8);
 }
@@ -495,8 +543,15 @@ function drawLegendFull(ctx: SKRSContext2D, x: number, y: number, w: number): nu
 function drawSectionTitle(ctx: SKRSContext2D, x: number, y: number, w: number, title: string): number {
   // 标题前的短竖条是主色，和正文的中性色拉开，一眼看得出这是分节
   fillRound(ctx, x, y - s(1), s(3), s(12), s(SHAPE.full), C.primary);
-  textLeft(ctx, title, x + s(15), y + s(5), `600 ${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
-  const tw = textWidth(title, s(11.5));
+  textLeft(
+    ctx,
+    title,
+    x + s(15),
+    y + s(5),
+    `${EMPHASIZED_WEIGHT.label} ${s(TYPE.labelMedium.size)}px ${FONT_SANS}`,
+    C.onSurfaceVariant
+  );
+  const tw = textWidth(title, s(TYPE.labelMedium.size));
   ctx.strokeStyle = C.outlineVariant;
   ctx.lineWidth = s(1);
   ctx.beginPath();
@@ -523,8 +578,8 @@ function drawNearBar(
   const fillW = Math.max(barH, (barW * pct) / 100);
   const top = y - barH / 2;
 
-  // 填充与轨道分成两段，中间空一道——M3 新版进度指示器就长这样
-  fillRound(ctx, x, top, fillW, barH, barH / 2, tier.color);
+  // 填充与轨道分成两段，中间空一道——M3 新版进度指示器就长这样，两段都是全圆头
+  fillRound(ctx, x, top, fillW, barH, s(SHAPE.full), tier.color);
   if (fillW + gap < barW) {
     fillRound(
       ctx,
@@ -532,11 +587,18 @@ function drawNearBar(
       top,
       barW - fillW - gap,
       barH,
-      barH / 2,
+      s(SHAPE.full),
       C.surfaceContainerHighest
     );
   }
-  textLeft(ctx, tier.name, x + barW + s(9), y, `600 ${s(12.5)}px ${FONT_SANS}`, tier.color);
+  textLeft(
+    ctx,
+    tier.name,
+    x + barW + s(9),
+    y,
+    `${EMPHASIZED_WEIGHT.label} ${s(TYPE.labelMedium.size)}px ${FONT_SANS}`,
+    tier.color
+  );
 }
 
 function measureBoard(opts: BoardOptions): { innerW: number; innerH: number; rowH: number } {
@@ -584,11 +646,11 @@ function drawBoardTable(
   const rk0 = nb1 + cols.nb;
   const mt0 = rk0 + cols.rk;
   const noX = bx + s(2);
-  const meterBlockW = s(88) + s(9) + textWidth("咫尺", s(12.5));
+  const meterBlockW = s(88) + s(9) + textWidth("咫尺", s(TYPE.labelMedium.size));
   const mtX = mt0 + Math.max(0, (cols.mt - meterBlockW) / 2);
 
   const headY = y;
-  const fs = s(10.5);
+  const fs = s(TYPE.labelSmall.size);
   textLeft(ctx, "序", noX, headY, `${fs}px ${FONT_SANS}`, C.onSurfaceVariant);
   textCenter(ctx, "更近 ◀", nb0 + cols.nb / 2, headY, `${fs}px ${FONT_SANS}`, C.onSurfaceVariant);
   textCenter(ctx, "猜测", gw0 + cols.gw / 2, headY, `${fs}px ${FONT_SANS}`, C.onSurfaceVariant);
@@ -607,7 +669,7 @@ function drawBoardTable(
         `…… 另有 ${row.gapBefore} 词未列`,
         cx + tableW / 2,
         ry + s(10),
-        `${s(11.5)}px ${FONT_SANS}`,
+        `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`,
         C.onSurfaceVariant
       );
       ctx.strokeStyle = C.outlineVariant;
@@ -642,7 +704,7 @@ function drawBoardTable(
       String(ordinal).padStart(2, "0"),
       noX,
       midY,
-      `${s(13)}px ${FONT_NUM}`,
+      `${s(TYPE.labelMedium.size)}px ${FONT_NUM}`,
       C.onSurfaceVariant
     );
 
@@ -656,12 +718,12 @@ function drawBoardTable(
     drawWordGrid(ctx, rbX, midY - s(13), history.rightHint, "sm", 1);
 
     const rankText = String(history.rank);
-    const rankFont = `700 ${s(21)}px ${FONT_NUM}`;
-    const rankWidth = textWidth(rankText, s(21));
-    const hashW = textWidth("#", s(13));
+    const rankFont = `${EMPHASIZED_WEIGHT.title} ${s(TYPE.titleLarge.size)}px ${FONT_NUM}`;
+    const rankWidth = textWidth(rankText, s(TYPE.titleLarge.size));
+    const hashW = textWidth("#", s(TYPE.labelMedium.size));
     const rankBlock = hashW + s(3) + rankWidth;
     const rankLeft = rk0 + (cols.rk - rankBlock) / 2;
-    textLeft(ctx, "#", rankLeft, midY, `${s(13)}px ${FONT_NUM}`, C.onSurfaceVariant);
+    textLeft(ctx, "#", rankLeft, midY, `${s(TYPE.labelMedium.size)}px ${FONT_NUM}`, C.onSurfaceVariant);
     textLeft(ctx, rankText, rankLeft + hashW + s(3), midY, rankFont, tier.color);
 
     drawNearBar(ctx, mtX, midY, pct, tier);
@@ -712,31 +774,59 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
     y += s(11);
     const p1h = s(104);
     drawPanel(ctx, ix + s(22), y, iw - s(44), p1h);
-    textLeft(ctx, "开始", ix + s(38), y + s(24), `${s(14)}px ${FONT_SANS}`, C.primary);
-    textLeft(ctx, "ciyi.猜 山水", ix + s(96), y + s(24), `${s(13.5)}px ${FONT_NUM}`, C.onSurface);
+    textLeft(ctx, "开始", ix + s(38), y + s(24), `${s(TYPE.labelLarge.size)}px ${FONT_SANS}`, C.primary);
+    textLeft(
+      ctx,
+      "ciyi.猜 山水",
+      ix + s(96),
+      y + s(24),
+      `${s(TYPE.labelLarge.size)}px ${FONT_SANS}`,
+      C.onSurface
+    );
     textLeftFit(
       ctx,
       `开题并报一个两字词${opts.middleware ? "；开题后可直接发词" : ""}`,
       ix + s(230),
       y + s(24),
       iw - s(268),
-      `${s(14)}px ${FONT_SANS}`,
+      `${s(TYPE.bodyMedium.size)}px ${FONT_SANS}`,
       C.onSurface
     );
-    textLeft(ctx, "切换", ix + s(38), y + s(52), `${s(14)}px ${FONT_SANS}`, C.primary);
-    textLeft(ctx, "ciyi.裸词 开/关", ix + s(96), y + s(52), `${s(13.5)}px ${FONT_NUM}`, C.onSurface);
+    textLeft(ctx, "切换", ix + s(38), y + s(52), `${s(TYPE.labelLarge.size)}px ${FONT_SANS}`, C.primary);
+    textLeft(
+      ctx,
+      "ciyi.裸词 开/关",
+      ix + s(96),
+      y + s(52),
+      `${s(TYPE.labelLarge.size)}px ${FONT_SANS}`,
+      C.onSurface
+    );
     textLeftFit(
       ctx,
       "临时改本频道的续猜方式",
       ix + s(230),
       y + s(52),
       iw - s(268),
-      `${s(14)}px ${FONT_SANS}`,
+      `${s(TYPE.bodyMedium.size)}px ${FONT_SANS}`,
       C.onSurface
     );
-    textLeft(ctx, "排行", ix + s(38), y + s(80), `${s(14)}px ${FONT_SANS}`, C.primary);
-    textLeft(ctx, "ciyi.排行榜", ix + s(96), y + s(80), `${s(13.5)}px ${FONT_NUM}`, C.onSurface);
-    textLeft(ctx, "看谁猜中得最多", ix + s(230), y + s(80), `${s(14)}px ${FONT_SANS}`, C.onSurface);
+    textLeft(ctx, "排行", ix + s(38), y + s(80), `${s(TYPE.labelLarge.size)}px ${FONT_SANS}`, C.primary);
+    textLeft(
+      ctx,
+      "ciyi.排行榜",
+      ix + s(96),
+      y + s(80),
+      `${s(TYPE.labelLarge.size)}px ${FONT_SANS}`,
+      C.onSurface
+    );
+    textLeft(
+      ctx,
+      "看谁猜中得最多",
+      ix + s(230),
+      y + s(80),
+      `${s(TYPE.bodyMedium.size)}px ${FONT_SANS}`,
+      C.onSurface
+    );
     y += p1h + s(19);
 
     y += drawSectionTitle(ctx, ix + s(22), y, iw - s(44), "读板");
@@ -761,7 +851,7 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       "这一行是说：「企业」与今日答案的意思相近程度，排在第 467 位。",
       ix + s(38),
       y + s(104),
-      `${s(12)}px ${FONT_SANS}`,
+      `${s(TYPE.bodySmall.size)}px ${FONT_SANS}`,
       C.onSurfaceVariant
     );
     textLeft(
@@ -769,7 +859,7 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       "两侧空格各藏一字：左邻更近，右邻更远。",
       ix + s(38),
       y + s(126),
-      `${s(12)}px ${FONT_SANS}`,
+      `${s(TYPE.bodySmall.size)}px ${FONT_SANS}`,
       C.onSurfaceVariant
     );
     textLeft(
@@ -777,7 +867,7 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       "名次越小，离答案越近；#1 就是答案本身。",
       ix + s(38),
       y + s(148),
-      `${s(12)}px ${FONT_SANS}`,
+      `${s(TYPE.bodySmall.size)}px ${FONT_SANS}`,
       C.onSurfaceVariant
     );
     y += sampleH + s(19);
@@ -802,7 +892,7 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       "一日一词，猜中即止，次日零点换题",
       ix + s(22),
       iy + ih - s(30),
-      `${s(11.5)}px ${FONT_SANS}`,
+      `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`,
       C.onSurfaceVariant
     );
   });
@@ -821,39 +911,46 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
 
     drawSeal(ctx, ix + iw - s(80), y - s(13), s(42), ["中"]);
 
-    textLeft(ctx, "今日答案", ix + s(38), y + s(24), `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
+    textLeft(ctx, "今日答案", ix + s(38), y + s(24), `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`, C.onSurfaceVariant);
     drawWordGrid(ctx, ix + s(38), y + s(40), opts.answer, "lg");
 
     const ax = ix + iw - s(310);
     if (opts.neighbors.length) {
-      textLeft(ctx, "意思最近的几个词", ax, y + s(24), `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
+      textLeft(ctx, "意思最近的几个词", ax, y + s(24), `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`, C.onSurfaceVariant);
       let nx = ax;
       let ny = y + s(48);
-      const chipFont = `${s(14)}px ${FONT_SANS}`;
+      const chipFont = `${s(TYPE.labelLarge.size)}px ${FONT_SANS}`;
       const chipRight = ix + iw - s(38);
       for (const word of opts.neighbors) {
-        const fittedWord = ellipsize(word, s(116), s(14));
-        const pw = textWidth(fittedWord, s(14)) + s(20);
+        const fittedWord = ellipsize(word, s(116), s(TYPE.labelLarge.size));
+        const pw = textWidth(fittedWord, s(TYPE.labelLarge.size)) + s(20);
         if (nx !== ax && nx + pw > chipRight) {
           nx = ax;
           ny += s(36);
         }
         if (ny + s(14) > y + revealH - s(12)) break;
         // 近义词做成药丸形的 chip：次要容器色打底，不再描边
-        fillRound(ctx, nx, ny - s(14), pw, s(28), s(SHAPE.full), SCHEME.secondaryContainer);
+        fillRound(ctx, nx, ny - s(14), pw, s(28), s(SHAPE.full), C.secondaryContainer);
         textCenter(
           ctx,
           fittedWord,
           nx + pw / 2,
           ny,
           chipFont,
-          SCHEME.onSecondaryContainer,
-          cjkOffset(s(14))
+          C.onSecondaryContainer,
+          cjkOffset(s(TYPE.labelLarge.size))
         );
         nx += pw + s(7);
       }
     } else {
-      textLeft(ctx, "今日一词，就此收笔。", ax, y + s(50), `${s(13.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
+      textLeft(
+        ctx,
+        "今日一词，就此收笔。",
+        ax,
+        y + s(50),
+        `${s(TYPE.bodyMedium.size)}px ${FONT_SANS}`,
+        C.onSurfaceVariant
+      );
     }
 
     y += revealH + s(14);
@@ -867,11 +964,32 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
     for (let i = 0; i < 3; i++) {
       const sx = ix + s(22) + i * (statW + s(10));
       drawPanel(ctx, sx, y, statW, s(56));
-      textLeft(ctx, stats[i].n, sx + s(14), y + s(22), `700 ${s(23)}px ${FONT_NUM}`, C.primary);
+      textLeft(
+        ctx,
+        stats[i].n,
+        sx + s(14),
+        y + s(22),
+        `${EMPHASIZED_WEIGHT.headline} ${s(TYPE.headlineSmall.size)}px ${FONT_NUM}`,
+        C.primary
+      );
       if (stats[i].u) {
-        textLeft(ctx, stats[i].u, sx + s(14) + textWidth(stats[i].n, s(23)) + s(3), y + s(26), `${s(12)}px ${FONT_SANS}`, C.onSurfaceVariant);
+        textLeft(
+          ctx,
+          stats[i].u,
+          sx + s(14) + textWidth(stats[i].n, s(TYPE.headlineSmall.size)) + s(3),
+          y + s(26),
+          `${s(TYPE.labelMedium.size)}px ${FONT_SANS}`,
+          C.onSurfaceVariant
+        );
       }
-      textLeft(ctx, stats[i].c, sx + s(14), y + s(44), `${s(10.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
+      textLeft(
+        ctx,
+        stats[i].c,
+        sx + s(14),
+        y + s(44),
+        `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`,
+        C.onSurfaceVariant
+      );
     }
 
     const quip =
@@ -890,8 +1008,8 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
       [],
       footerTip
     );
-    const footerFont = `${s(11.5)}px ${FONT_SANS}`;
-    const footerTipWidth = textWidth(footerTip, s(11.5));
+    const footerFont = `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`;
+    const footerTipWidth = textWidth(footerTip, s(TYPE.labelSmall.size));
     textLeftFit(
       ctx,
       `${opts.username} 拿下今日一词 · ${quip}`,
@@ -936,10 +1054,10 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
     if (!opts.entries.length) {
       textCenter(
         ctx,
-        "榜上无名。",
+        "排行榜还空着",
         panelX + panelW / 2,
         y + s(31),
-        `${s(13.5)}px ${FONT_SANS}`,
+        `${s(TYPE.bodyMedium.size)}px ${FONT_SANS}`,
         C.onSurfaceVariant
       );
       textCenter(
@@ -947,7 +1065,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         "今日第一个猜中的人，会写在这里。",
         panelX + panelW / 2,
         y + s(61),
-        `${s(13.5)}px ${FONT_SANS}`,
+        `${s(TYPE.bodyMedium.size)}px ${FONT_SANS}`,
         C.onSurfaceVariant
       );
     } else {
@@ -971,33 +1089,48 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         const posSize = s(30);
         const px = contentLeft;
         const py = midY - posSize / 2;
-        // 前三名用固定的金银铜；名次的含义不该跟着主题色变
+        // 前三名用固定的金银铜；名次的含义不该跟着主题色变。
+        // 徽章里的字是反白，取 scheme 的 on 角色（色调 100，与 components() 里 m3-badge 的白同源）
         const podium = [MEDAL.gold, MEDAL.silver, MEDAL.bronze];
         const pc = i < 3
-          ? { bg: podium[i], fg: "#ffffff" }
+          ? { bg: podium[i], fg: C.onPrimary }
           : { bg: C.surfaceContainerHighest, fg: C.onSurfaceVariant };
         fillRound(ctx, px, py, posSize, posSize, s(SHAPE.full), pc.bg);
-        textCenter(ctx, String(i + 1), px + posSize / 2, midY, `600 ${s(14)}px ${FONT_NUM}`, pc.fg);
+        textCenter(
+          ctx,
+          String(i + 1),
+          px + posSize / 2,
+          midY,
+          `${EMPHASIZED_WEIGHT.label} ${s(TYPE.labelLarge.size)}px ${FONT_NUM}`,
+          pc.fg
+        );
 
         const name = e.username || "无名氏";
         const nameX = px + posSize + s(14);
-        const nameFont = `${s(15)}px ${FONT_SANS}`;
+        const nameFont = `${s(TYPE.titleMedium.size)}px ${FONT_SANS}`;
         const score = String(e.score);
-        const unitFont = s(11.5);
+        const unitFont = s(TYPE.labelSmall.size);
         const unitW = textWidth("次", unitFont);
-        const scoreFont = s(19);
+        const scoreFont = s(TYPE.titleLarge.size);
         const scoreRight = contentRight - unitW - s(8);
         const scoreLeft = scoreRight - textWidth(score, scoreFont);
-        const meWidth = e.me ? textWidth("我", s(10.5)) + s(18) : 0;
+        const meWidth = e.me ? textWidth("我", s(TYPE.labelSmall.size)) + s(18) : 0;
         const fittedName = ellipsize(
           name,
           Math.max(0, scoreLeft - s(16) - nameX - meWidth),
-          s(15)
+          s(TYPE.titleMedium.size)
         );
         textLeft(ctx, fittedName, nameX, midY, nameFont, C.onSurface);
         if (e.me) {
-          const nw = textWidth(fittedName, s(15));
-          textLeft(ctx, "我", nameX + nw + s(8), midY, `${s(10.5)}px ${FONT_SANS}`, C.primary);
+          const nw = textWidth(fittedName, s(TYPE.titleMedium.size));
+          textLeft(
+            ctx,
+            "我",
+            nameX + nw + s(8),
+            midY,
+            `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`,
+            C.primary
+          );
         }
 
         textRight(
@@ -1005,7 +1138,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
           score,
           scoreRight,
           midY,
-          `700 ${scoreFont}px ${FONT_NUM}`,
+          `${EMPHASIZED_WEIGHT.title} ${scoreFont}px ${FONT_NUM}`,
           C.onSurface
         );
         textRight(ctx, "次", contentRight, midY, `${unitFont}px ${FONT_SANS}`, C.onSurfaceVariant);
@@ -1019,7 +1152,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
           `…… 另有 ${opts.hidden} 人在榜`,
           contentLeft,
           ry + s(16),
-          `${s(11.5)}px ${FONT_SANS}`,
+          `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`,
           C.onSurfaceVariant
         );
       }
@@ -1038,7 +1171,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
       "每猜中一日之词，记一次",
       panelX,
       iy + ih - s(30),
-      `${s(11.5)}px ${FONT_SANS}`,
+      `${s(TYPE.labelSmall.size)}px ${FONT_SANS}`,
       C.onSurfaceVariant
     );
   });
