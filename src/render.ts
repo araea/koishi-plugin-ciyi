@@ -334,7 +334,7 @@ function drawWordGrid(
   const chars = Array.from(word || "");
 
   if (chars.length === 0) {
-    textCenter(ctx, "—", x + s(14), y + cell / 2, `${s(13)}px ${FONT_SANS}`, C.outline);
+    textCenter(ctx, "—", x + s(14), y + cell / 2, `${s(13)}px ${FONT_SANS}`, C.onSurfaceVariant);
     return s(28);
   }
 
@@ -388,7 +388,7 @@ function drawHeader(
     brandX,
     innerY + padTop + s(36),
     `italic ${s(10)}px ${FONT_NUM}`,
-    C.outline
+    C.onSurfaceVariant
   );
   const subRight = right ? innerX + innerW - padX - s(150) : innerX + innerW - padX;
   textLeftFit(
@@ -404,7 +404,7 @@ function drawHeader(
   if (right) {
     const rx = innerX + innerW - padX;
     textRight(ctx, right.big, rx, innerY + padTop + s(16), `700 ${s(31)}px ${FONT_NUM}`, C.primary);
-    textRight(ctx, right.cap, rx, innerY + padTop + s(44), `${s(10.5)}px ${FONT_SANS}`, C.outline);
+    textRight(ctx, right.cap, rx, innerY + padTop + s(44), `${s(10.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
   }
 
   const lineY = innerY + h;
@@ -459,7 +459,7 @@ function drawFooter(
     lx += s(9) + s(6);
     textLeft(ctx, tier.name, lx, cy, `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
     lx += textWidth(tier.name, s(11.5)) + s(4);
-    textLeft(ctx, range, lx, cy, `${s(11)}px ${FONT_NUM}`, C.outline);
+    textLeft(ctx, range, lx, cy, `${s(11)}px ${FONT_NUM}`, C.onSurfaceVariant);
     lx += textWidth(range, s(11)) + s(13);
   }
 
@@ -471,7 +471,7 @@ function drawFooter(
     innerX + innerW - padX,
     cy,
     tipFont,
-    C.outline
+    C.onSurfaceVariant
   );
 
   return h + padY * 2;
@@ -486,8 +486,8 @@ function drawLegendFull(ctx: SKRSContext2D, x: number, y: number, w: number): nu
     const cy = y + Math.floor(i / 2) * rowH;
     fillRound(ctx, cx, cy - s(4.5), s(9), s(9), s(SHAPE.full), t.color);
     textLeft(ctx, t.name, cx + s(15), cy, `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
-    textLeft(ctx, tierRange(i), cx + s(52), cy, `${s(11)}px ${FONT_NUM}`, C.outline);
-    textLeft(ctx, t.note, cx + s(100), cy, `${s(11.5)}px ${FONT_SANS}`, C.outline);
+    textLeft(ctx, tierRange(i), cx + s(52), cy, `${s(11)}px ${FONT_NUM}`, C.onSurfaceVariant);
+    textLeft(ctx, t.note, cx + s(100), cy, `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
   }
   return rowH * Math.ceil(TIERS.length / 2) + s(8);
 }
@@ -589,12 +589,12 @@ function drawBoardTable(
 
   const headY = y;
   const fs = s(10.5);
-  textLeft(ctx, "序", noX, headY, `${fs}px ${FONT_SANS}`, C.outline);
-  textCenter(ctx, "更近 ◀", nb0 + cols.nb / 2, headY, `${fs}px ${FONT_SANS}`, C.outline);
-  textCenter(ctx, "猜测", gw0 + cols.gw / 2, headY, `${fs}px ${FONT_SANS}`, C.outline);
-  textCenter(ctx, "▶ 更远", nb1 + cols.nb / 2, headY, `${fs}px ${FONT_SANS}`, C.outline);
-  textCenter(ctx, "排名", rk0 + cols.rk / 2, headY, `${fs}px ${FONT_SANS}`, C.outline);
-  textCenter(ctx, "亲疏", mt0 + cols.mt / 2, headY, `${fs}px ${FONT_SANS}`, C.outline);
+  textLeft(ctx, "序", noX, headY, `${fs}px ${FONT_SANS}`, C.onSurfaceVariant);
+  textCenter(ctx, "更近 ◀", nb0 + cols.nb / 2, headY, `${fs}px ${FONT_SANS}`, C.onSurfaceVariant);
+  textCenter(ctx, "猜测", gw0 + cols.gw / 2, headY, `${fs}px ${FONT_SANS}`, C.onSurfaceVariant);
+  textCenter(ctx, "▶ 更远", nb1 + cols.nb / 2, headY, `${fs}px ${FONT_SANS}`, C.onSurfaceVariant);
+  textCenter(ctx, "排名", rk0 + cols.rk / 2, headY, `${fs}px ${FONT_SANS}`, C.onSurfaceVariant);
+  textCenter(ctx, "亲疏", mt0 + cols.mt / 2, headY, `${fs}px ${FONT_SANS}`, C.onSurfaceVariant);
 
   let ry = y + s(22);
   let ordinal = 0;
@@ -608,7 +608,7 @@ function drawBoardTable(
         cx + tableW / 2,
         ry + s(10),
         `${s(11.5)}px ${FONT_SANS}`,
-        C.outline
+        C.onSurfaceVariant
       );
       ctx.strokeStyle = C.outlineVariant;
       ctx.beginPath();
@@ -643,7 +643,7 @@ function drawBoardTable(
       noX,
       midY,
       `${s(13)}px ${FONT_NUM}`,
-      C.outline
+      C.onSurfaceVariant
     );
 
     const nbX = nb0 + (cols.nb - gridWidth(history.leftHint, "sm")) / 2;
@@ -661,7 +661,7 @@ function drawBoardTable(
     const hashW = textWidth("#", s(13));
     const rankBlock = hashW + s(3) + rankWidth;
     const rankLeft = rk0 + (cols.rk - rankBlock) / 2;
-    textLeft(ctx, "#", rankLeft, midY, `${s(13)}px ${FONT_NUM}`, C.outline);
+    textLeft(ctx, "#", rankLeft, midY, `${s(13)}px ${FONT_NUM}`, C.onSurfaceVariant);
     textLeft(ctx, rankText, rankLeft + hashW + s(3), midY, rankFont, tier.color);
 
     drawNearBar(ctx, mtX, midY, pct, tier);
@@ -762,7 +762,7 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       ix + s(38),
       y + s(104),
       `${s(12)}px ${FONT_SANS}`,
-      C.outline
+      C.onSurfaceVariant
     );
     textLeft(
       ctx,
@@ -770,7 +770,7 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       ix + s(38),
       y + s(126),
       `${s(12)}px ${FONT_SANS}`,
-      C.outline
+      C.onSurfaceVariant
     );
     textLeft(
       ctx,
@@ -803,7 +803,7 @@ export function renderIntroCard(service: CanvasService, opts: IntroOptions): Pro
       ix + s(22),
       iy + ih - s(30),
       `${s(11.5)}px ${FONT_SANS}`,
-      C.outline
+      C.onSurfaceVariant
     );
   });
 }
@@ -821,12 +821,12 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
 
     drawSeal(ctx, ix + iw - s(80), y - s(13), s(42), ["中"]);
 
-    textLeft(ctx, "今日答案", ix + s(38), y + s(24), `${s(11.5)}px ${FONT_SANS}`, C.outline);
+    textLeft(ctx, "今日答案", ix + s(38), y + s(24), `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
     drawWordGrid(ctx, ix + s(38), y + s(40), opts.answer, "lg");
 
     const ax = ix + iw - s(310);
     if (opts.neighbors.length) {
-      textLeft(ctx, "意思最近的几个词", ax, y + s(24), `${s(11.5)}px ${FONT_SANS}`, C.outline);
+      textLeft(ctx, "意思最近的几个词", ax, y + s(24), `${s(11.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
       let nx = ax;
       let ny = y + s(48);
       const chipFont = `${s(14)}px ${FONT_SANS}`;
@@ -871,7 +871,7 @@ export function renderWinCard(service: CanvasService, opts: WinOptions): Promise
       if (stats[i].u) {
         textLeft(ctx, stats[i].u, sx + s(14) + textWidth(stats[i].n, s(23)) + s(3), y + s(26), `${s(12)}px ${FONT_SANS}`, C.onSurfaceVariant);
       }
-      textLeft(ctx, stats[i].c, sx + s(14), y + s(44), `${s(10.5)}px ${FONT_SANS}`, C.outline);
+      textLeft(ctx, stats[i].c, sx + s(14), y + s(44), `${s(10.5)}px ${FONT_SANS}`, C.onSurfaceVariant);
     }
 
     const quip =
@@ -940,7 +940,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         panelX + panelW / 2,
         y + s(31),
         `${s(13.5)}px ${FONT_SANS}`,
-        C.outline
+        C.onSurfaceVariant
       );
       textCenter(
         ctx,
@@ -948,7 +948,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         panelX + panelW / 2,
         y + s(61),
         `${s(13.5)}px ${FONT_SANS}`,
-        C.outline
+        C.onSurfaceVariant
       );
     } else {
       let ry = y;
@@ -1008,7 +1008,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
           `700 ${scoreFont}px ${FONT_NUM}`,
           C.onSurface
         );
-        textRight(ctx, "次", contentRight, midY, `${unitFont}px ${FONT_SANS}`, C.outline);
+        textRight(ctx, "次", contentRight, midY, `${unitFont}px ${FONT_SANS}`, C.onSurfaceVariant);
 
         ry += rowH;
       }
@@ -1020,7 +1020,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
           contentLeft,
           ry + s(16),
           `${s(11.5)}px ${FONT_SANS}`,
-          C.outline
+          C.onSurfaceVariant
         );
       }
     }
@@ -1039,7 +1039,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
       panelX,
       iy + ih - s(30),
       `${s(11.5)}px ${FONT_SANS}`,
-      C.outline
+      C.onSurfaceVariant
     );
   });
 }
