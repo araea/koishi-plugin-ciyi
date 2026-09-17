@@ -12,7 +12,7 @@ import { BoardRow, History, nearness, tierOf } from "./view";
 export const name = "ciyi";
 export const usage = `## 使用
 
-发送 \`ciyi\` 查看玩法。每日藏一个两字词，用 \`ciyi.猜 <词>\` 开题，之后可以直接发送两字词继续猜。裸词设置只对当前频道生效，重启后恢复默认。
+发送 \`ciyi\` 查看玩法。每日藏一个两字词，用 \`ciyi.猜 <词>\` 开题，之后可以直接发送两字词继续猜，@ 或引用后接两字词同样算。裸词设置只对当前频道生效，重启后恢复默认。
 
 ## 指令
 
@@ -91,7 +91,10 @@ export type { History };
 /**
  * 裸词中间件只看消息里的文本，引用、@、图片等非文本元素一律过滤掉：
  * 回复时带上引用或 @ 是常见操作，不应因此把一条两字词挡在门外。
- * 剩下的正文仍必须是一条完整、无多余空白的两字中文词。
+ *
+ * 平台还会把被 @ 的那个昵称原样抄进正文（QQ 就是「@昵称 山水」），
+ * 前缀与正文之间垫的空白同理，都属于前缀。带前缀时连它们一起摘掉，
+ * 摘不干净就照旧不认。摘完之后，正文仍必须是一条完整、无多余空白的两字中文词。
  */
 export function getMiddlewareGuess(session: Session): string | null {
   const message = session.event.message;
@@ -99,11 +102,21 @@ export function getMiddlewareGuess(session: Session): string | null {
     return null;
   }
 
-  const text = (message.elements ?? [])
+  const elements = message.elements ?? [];
+  // 真实消息里首个引用元素会被 Koishi 移进 message.quote，两种形状都要认
+  const prefixed =
+    !!message.quote ||
+    elements.some(
+      (element) => element.type === "at" || element.type === "quote"
+    );
+
+  let text = elements
     .filter((element) => element.type === "text")
     .map((element) => element.attrs.content)
     .filter((content): content is string => typeof content === "string")
     .join("");
+
+  if (prefixed) text = text.replace(/^\s*@\S*/, "").trim();
 
   if (
     text !== text.trim() ||

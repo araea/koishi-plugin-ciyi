@@ -72,9 +72,51 @@ test("过滤掉引用、@ 等非文本元素后仍能识别裸词", () => {
     ),
     "山水"
   );
-  // 引用字段不再拦词，但仍要求正文本身干净
+  // 引用被 Koishi 移进 message.quote 后，元素里只剩 at 与正文
+  assert.equal(
+    getMiddlewareGuess(session([h("at", { id: "bot" }), h.text("山水")], { quote: true })),
+    "山水"
+  );
+  // 前缀与正文之间垫的空白属于前缀，一并摘掉
   assert.equal(
     getMiddlewareGuess(session([h.text(" 山水")], { quote: true })),
+    "山水"
+  );
+  assert.equal(
+    getMiddlewareGuess(session([h("at", { id: "bot" }), h.text("山水 ")])),
+    "山水"
+  );
+});
+
+test("带前缀时摘掉 QQ 抄进正文的「@昵称」，摘不干净就不认", () => {
+  assert.equal(
+    getMiddlewareGuess(session([h("at", { id: "bot" }), h.text("@知微 山水")])),
+    "山水"
+  );
+  assert.equal(
+    getMiddlewareGuess(
+      session([
+        h("quote", { id: "quoted" }),
+        h("at", { id: "bot" }),
+        h.text("@知微 山水"),
+      ])
+    ),
+    "山水"
+  );
+  // 没有 at/quote 元素时，「@昵称」只是正文的一部分，不摘
+  assert.equal(getMiddlewareGuess(session([h.text("@知微 山水")])), null);
+  // 昵称与词连在一起、昵称自带空白，都猜不到名字到哪里为止，不啃半截
+  assert.equal(
+    getMiddlewareGuess(session([h("at", { id: "bot" }), h.text("@知微山水")])),
+    null
+  );
+  assert.equal(
+    getMiddlewareGuess(session([h("at", { id: "bot" }), h.text("@大 家 山水")])),
+    null
+  );
+  // @ 前缀也不能让正文里的空白合法化
+  assert.equal(
+    getMiddlewareGuess(session([h("at", { id: "bot" }), h.text("山 水")])),
     null
   );
 });
