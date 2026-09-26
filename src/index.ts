@@ -1,5 +1,5 @@
 import { registerDirectInput, directInputConflict } from './ux'
-import { usePresentation } from './ux'
+import { present } from './ux'
 import { $, Context, h, Random, Schema, Session } from "koishi";
 import allWords from "./data/allWords.json";
 import questionList from "./data/questionList.json";
@@ -187,7 +187,6 @@ export function resolveMiddlewareSwitch(
 }
 
 export function apply(ctx: Context, cfg: Config) {
-  const presentation = usePresentation(ctx, 'ciyi')
   // tzb*
   ctx.model.extend(
     "ciyi",
@@ -561,7 +560,7 @@ export function apply(ctx: Context, cfg: Config) {
   async function send(session: Session, content: h.Fragment) {
     const ids = await session.send(content);
     const messageId = ids?.[0];
-    if (presentation.textOnly(session) || !cfg.retractDelay || !messageId) return;
+    if (!cfg.retractDelay || !messageId) return;
     const previous = lastMessage.get(session.channelId);
     if (previous) {
       const passed = Date.now() - previous.timestamp;
@@ -578,12 +577,12 @@ export function apply(ctx: Context, cfg: Config) {
   }
 
   async function sendCard(session: Session, render: () => Promise<Buffer>, fallback: string) {
-    const image = presentation.textOnly(session) ? null : await renderCard(render);
+    const image = await renderCard(render);
     const prefix: h[] = [];
     if (cfg.quoteReply && session.messageId) prefix.push(h.quote(session.messageId));
     if (cfg.atReply) prefix.push(h.at(session.userId), h("p"));
     if (image) {
-      await send(session, [...prefix, ...h.normalize(presentation.present(session, image, h.text(fallback)))]);
+      await send(session, [...prefix, ...h.normalize(present(image, h.text(fallback)))]);
       return;
     }
     await send(session, [...prefix, h.text(fallback)]);
