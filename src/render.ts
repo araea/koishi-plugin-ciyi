@@ -12,6 +12,7 @@ import {
   FONT_STACK,
   lch,
   MEDAL,
+  onColor,
   MONO_STACK,
   scheme,
   SHAPE,
@@ -1093,7 +1094,7 @@ export function renderRankCard(service: CanvasService, opts: RankOptions): Promi
         // 徽章里的字是反白，取 scheme 的 on 角色（色调 100，与 components() 里 m3-badge 的白同源）
         const podium = [MEDAL.gold, MEDAL.silver, MEDAL.bronze];
         const pc = i < 3
-          ? { bg: podium[i], fg: C.onPrimary }
+          ? { bg: podium[i], fg: onColor(podium[i]) }
           : { bg: C.surfaceContainerHighest, fg: C.onSurfaceVariant };
         fillRound(ctx, px, py, posSize, posSize, s(SHAPE.full), pc.bg);
         textCenter(
