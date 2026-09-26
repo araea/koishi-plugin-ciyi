@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-ciyi",
   "description": "Koishi 群聊猜词：每天一个两字词，支持续猜和排行榜。",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
