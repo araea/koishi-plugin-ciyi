@@ -1,6 +1,6 @@
 # 词意
 
-Koishi 群聊猜词插件，每天出一个两字词，玩家按语义远近竞猜并累计排行
+Koishi 插件：每天出一个两字词，玩家按语义远近竞猜并累计排行
 
 [![GitHub](https://img.shields.io/badge/GitHub-仓库-181717)](https://github.com/araea/koishi-plugin-ciyi)
 [![npm](https://img.shields.io/badge/npm-koishi--plugin--ciyi-CB3837)](https://www.npmjs.com/package/koishi-plugin-ciyi)

@@ -1,6 +1,6 @@
 {
   "name": "koishi-plugin-ciyi",
-  "description": "Koishi 群聊猜词插件：每天出一个两字词，玩家按语义远近竞猜并累计排行。",
+  "description": "Koishi 插件：每天出一个两字词，玩家按语义远近竞猜并累计排行。",
   "version": "2.3.0",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
